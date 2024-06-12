@@ -1,0 +1,9 @@
+---
+- name: install wget 
+  hosts: all
+  become: yes
+  tasks:
+    - package:
+           name: wget
+           state: absent
+

@@ -6,9 +6,12 @@
       apt:
         name: apache2
     - name: updating the package
-      copy: 
-        dest: /var/www/html/index.html
-        content: This is my playbook 
+      copy:
+        scr: /home/max2/ansible/playbook/intex.html
+        dest: /var/www/html/
+        owner: root
+        group: root 
+        mode: '0644'
     - name: restarting the package   
       systemd:
         name: apache2

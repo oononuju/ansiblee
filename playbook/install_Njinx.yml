@@ -2,17 +2,16 @@
 - hosts: all
   become: yes
   tasks: 
-   - name: install_package
-     package: name=Nginx update_cache=yes state=qlatest
-     tags:["sutup "]
+  - name: install_package
+    apt: name=nginx update_cache=yes state=latest
+    tags: ["sutup "]
+ 
+  - name: Change NGINX port number
+    lineinfile:
+      path: /etc/nginx/nginx.conf
+      regexp: '^Listen '
+      insertafter: '^#Listen '
+      line: Listen 8004
 
-   - name: changing port number 
-     lineinfile:
-       path: /etc/nginx/nginx.conf
-       regexp: '^Listen '
-       insertafter: '#Listen '
-       line: Listen 8004
-     notify: changing port
-
-   - name: start service
-     service: name=Nginx state=started enable=yes 
+  - name: start service
+    systemd: name=nginx state=started enable=yes 

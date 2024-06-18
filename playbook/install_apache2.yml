@@ -7,13 +7,24 @@
         name: apache2
     - name: updating the package
       copy:
-        scr: /home/max2/ansible/playbook/intex.html
+        src: /home/max2/ansible/playbook/index.html
         dest: /var/www/html/
         owner: root
         group: root 
         mode: '0644'
-    - name: restarting the package   
+    - name: restarting the package
       systemd:
         name: apache2
         state: started
         enabled: yes
+    - name: chabge port
+      lineinfile:
+        path: /etc/apache2/ports.conf
+        regexp: '^Listen '
+        insertafter: '^#Listen '
+        line: Listen 8004
+      notify: Restart apache2
+
+  handlers:
+    - name: Restart apache2
+      service: name=apache2 start=restarted 

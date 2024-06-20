@@ -1,0 +1,10 @@
+---
+- hosts: all
+  become: yes
+  tasks: 
+  - name: using the and condition
+    apt: name=jenkins update_cache=yes state=latest
+    when: ansible_distribution="ubuntu" and ansible_distribution_version="22.04" 
+
+
+

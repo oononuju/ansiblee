@@ -8,6 +8,7 @@ import subprocess
 import sys
 import typing as t
 
+import ansible
 from ansible.module_utils.common.text.converters import to_bytes
 
 
@@ -55,11 +56,19 @@ def probe_interpreters_for_module(interpreter_paths, module_name):
     be returned (or ``None`` if probing fails for all supplied paths).
     :arg module_name: fully-qualified Python module name to probe for (eg, ``selinux``)
     """
+    env = os.environ | {'PYTHONPATH': os.path.dirname(ansible.__file__)}
     for interpreter_path in interpreter_paths:
         if not os.path.exists(interpreter_path):
             continue
         try:
-            rc = subprocess.call([interpreter_path, '-c', 'import {0}'.format(module_name)])
+            rc = subprocess.call(
+                [
+                    interpreter_path,
+                    '-c',
+                    f'import {module_name}, ansible.module_utils.basic',
+                ],
+                env=env,
+            )
             if rc == 0:
                 return interpreter_path
         except Exception:

@@ -402,7 +402,8 @@ class AnsibleVaultError(AnsibleError):
 
 
 class AnsibleVaultPasswordError(AnsibleVaultError):
-    pass
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(message or 'The vault secret was incorrect.')
 
 
 class AnsibleVaultFormatError(AnsibleVaultError):

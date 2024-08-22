@@ -563,20 +563,20 @@ class TestVaultLib(unittest.TestCase):
         self.assertEqual('default', vault_id2)
 
     def test_parse_vaulttext_envelope(self):
-        b_vaulttext = b"$ANSIBLE_VAULT;9.9;TEST\nansible"
+        b_vaulttext = b"$ANSIBLE_VAULT;1.1;TEST\nansible"
         b_ciphertext, b_version, method_name, vault_id = vault.parse_vaulttext_envelope(b_vaulttext)
         b_lines = b_ciphertext.split(b'\n')
         self.assertEqual(b_lines[0], b"ansible", msg="Payload was not properly split from the header")
         self.assertEqual(method_name, u'TEST', msg="method name was not properly set")
-        self.assertEqual(b_version, b"9.9", msg="version was not properly set")
+        self.assertEqual(b_version, b"1.1", msg="version was not properly set")
 
     def test_parse_vaulttext_envelope_crlf(self):
-        b_vaulttext = b"$ANSIBLE_VAULT;9.9;TEST\r\nansible"
+        b_vaulttext = b"$ANSIBLE_VAULT;1.1;TEST\r\nansible"
         b_ciphertext, b_version, method_name, vault_id = vault.parse_vaulttext_envelope(b_vaulttext)
         b_lines = b_ciphertext.split(b'\n')
         self.assertEqual(b_lines[0], b"ansible", msg="Payload was not properly split from the header")
         self.assertEqual(method_name, u'TEST', msg="method name was not properly set")
-        self.assertEqual(b_version, b"9.9", msg="version was not properly set")
+        self.assertEqual(b_version, b"1.1", msg="version was not properly set")
 
     def test_decrypt_decrypted(self):
         plaintext = u"ansible"

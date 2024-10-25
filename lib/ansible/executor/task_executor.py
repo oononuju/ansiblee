@@ -26,6 +26,7 @@ from ansible.playbook.conditional import Conditional
 from ansible.playbook.task import Task
 from ansible.plugins import get_plugin_class
 from ansible.plugins.loader import become_loader, cliconf_loader, connection_loader, httpapi_loader, netconf_loader, terminal_loader
+from ansible.plugins.test.core import unreachable
 from ansible.template import Templar
 from ansible.utils.collection_loader import AnsibleCollectionConfig
 from ansible.utils.listify import listify_lookup_plugin_terms
@@ -126,49 +127,43 @@ class TaskExecutor:
                 self._loop_eval_error = e
 
             if items is not None:
-                if len(items) > 0:
-                    item_results = self._run_loop(items)
+                if items:
+                    res = {'results': self._run_loop(items)}
+                    # set the global changed/failed/skipped result flags based on any item
+                    warnings = set()
+                    deprecations = set()
+                    skipped = True
+                    changed = failed = unreachable = False
+                    for item in res['results']:
+                        skipped &= item.get('skipped', False)
+                        changed |= item.get('changed', False)
+                        failed |= (failed_item := item.get('failed', False))
+                        unreachable |= (unreachable_item := item.get('unreachable', False))
 
-                    # create the overall result item
-                    res = dict(results=item_results)
+                        if failed_item:
+                            self._task.ignore_errors |= item.pop('_ansible_ignore_errors')
+                        if unreachable_item:
+                            self._task.ignore_unreachable |= item.pop('_ansible_ignore_unreachable')
 
-                    # loop through the item results and set the global changed/failed/skipped result flags based on any item.
-                    res['skipped'] = True
-                    for item in item_results:
-                        if 'changed' in item and item['changed'] and not res.get('changed'):
-                            res['changed'] = True
-                        if res['skipped'] and ('skipped' not in item or ('skipped' in item and not item['skipped'])):
-                            res['skipped'] = False
-                        if 'failed' in item and item['failed']:
-                            item_ignore = item.pop('_ansible_ignore_errors')
-                            if not res.get('failed'):
-                                res['failed'] = True
-                                res['msg'] = 'One or more items failed'
-                                self._task.ignore_errors = item_ignore
-                            elif self._task.ignore_errors and not item_ignore:
-                                self._task.ignore_errors = item_ignore
-                        if 'unreachable' in item and item['unreachable']:
-                            item_ignore_unreachable = item.pop('_ansible_ignore_unreachable')
-                            if not res.get('unreachable'):
-                                res['unreachable'] = True
-                                self._task.ignore_unreachable = item_ignore_unreachable
-                            elif self._task.ignore_unreachable and not item_ignore_unreachable:
-                                self._task.ignore_unreachable = item_ignore_unreachable
+                        warnings.update(item.pop('warnings', []))
+                        deprecations.update(item.pop('deprecations', []))
 
-                        # ensure to accumulate these
-                        for array in ['warnings', 'deprecations']:
-                            if array in item and item[array]:
-                                if array not in res:
-                                    res[array] = []
-                                if not isinstance(item[array], list):
-                                    item[array] = [item[array]]
-                                res[array] = res[array] + item[array]
-                                del item[array]
+                    if warnings:
+                        res['warnings'] = list(warnings)
+                    if deprecations:
+                        res['deprecations'] = list(deprecations)
 
-                    if not res.get('failed', False):
-                        res['msg'] = 'All items completed'
-                    if res['skipped']:
+                    if skipped:
                         res['msg'] = 'All items skipped'
+                    else:
+                        res['msg'] = 'One or more items failed' if failed else 'All items completed'
+
+                    res.update(
+                        skipped=skipped,
+                        changed=changed,
+                        failed=failed,
+                        unreachable=unreachable,
+                    )
                 else:
                     res = dict(changed=False, skipped=True, skipped_reason='No items in the list', results=[])
             else:

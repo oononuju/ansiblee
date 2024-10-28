@@ -40,3 +40,4 @@
   when: not (ansible_distribution == 'openSUSE Leap' and ansible_distribution_version is version('15.4', '>='))
 - include_tasks: test_umask.yml
   when: ansible_facts.system == 'Linux'
+- import_tasks: ssh_keygen.yml

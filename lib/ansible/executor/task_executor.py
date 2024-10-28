@@ -158,7 +158,7 @@ class TaskExecutor:
                         res['msg'] = 'All items skipped'
                     elif res.get('failed', False):
                         res['msg'] = 'One or more items failed'
-                    else res.get('msg', False):
+                    elif res.get('msg', False):
                         res['msg'] = 'All items completed'
                 else:
                     res = dict(changed=False, skipped=True, skipped_reason='No items in the list', results=[])

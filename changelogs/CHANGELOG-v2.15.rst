@@ -5,6 +5,38 @@ ansible-core 2.15 "Ten Years Gone" Release Notes
 .. contents:: Topics
 
 
+v2.15.13rc1
+===========
+
+Release Summary
+---------------
+
+| Release Date: 2024-10-29
+| `Porting Guide <https://docs.ansible.com/ansible-core/2.15/porting_guides/porting_guide_core_2.15.html>`__
+
+
+Minor Changes
+-------------
+
+- ansible-test - Improve container runtime probe error handling. When unexpected probe output is encountered, an error with more useful debugging information is provided.
+- ansible-test - Removed support for provisioning remote Windows 2012 and 2012-R2 instances.
+- ansible-test - Removed the ``vyos/1.1.8`` network remote as it is no longer functional.
+- ansible-test - Update ``pypi-test-container`` to version 3.1.0.
+
+Security Fixes
+--------------
+
+- include_vars action - Ensure that result masking is correctly requested when vault-encrypted files are read. (CVE-2024-8775)
+- task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``) is preserved. (CVE-2024-8775)
+- user action won't allow ssh-keygen, chown and chmod to run on existing ssh public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
+
+Bugfixes
+--------
+
+- Fix ``SemanticVersion.parse()`` to store the version string so that ``__repr__`` reports it instead of ``None`` (https://github.com/ansible/ansible/pull/83831).
+- runtime-metadata sanity test - do not crash on deprecations if ``galaxy.yml`` contains an empty ``version`` field (https://github.com/ansible/ansible/pull/83831).
+- user action will now require O(force) to overwrite the public part of an ssh key when generating ssh keys, as was already the case for the private part.
+
 v2.15.12
 ========
 

@@ -204,15 +204,14 @@ def check_required_by(requirements, parameters, options_context=None):
                     result[key] = []
                 result[key].append(required)
 
-    if result:
-        for key, missing in result.items():
-            if len(missing) > 0:
-                msg = "missing parameter(s) required by '%s': %s" % (key, ', '.join(missing))
-                if options_context:
-                    msg = "{0} found in {1}".format(msg, " -> ".join(options_context))
-                raise TypeError(to_native(msg))
+    if not result:
+        return result
 
-    return result
+    for key, missing in result.items():
+        msg = f"missing parameter(s) required by '{key}': {', '.join(missing)}"
+        if options_context:
+            msg = f"{msg} found in {' -> '.join(options_context)}"
+        raise TypeError(to_native(msg))
 
 
 def check_required_arguments(argument_spec, parameters, options_context=None):

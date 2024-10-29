@@ -1,19 +1,9 @@
-# Copyright 2015 Abhijit Menon-Sen <ams@2ndQuadrant.com>
-#
-# This file is part of Ansible
-#
-# Ansible is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Ansible is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright: (C) 2015 Abhijit Menon-Sen <ams@2ndQuadrant.com>
+# Copyright: Contributors to the Ansible project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import annotations
 
@@ -165,7 +155,7 @@ patterns = {
 }
 
 
-def parse_address(address, allow_ranges=False):
+def parse_address(address, allow_ranges=False, only_valid_ips=False):
     """
     Takes a string and returns a (host, port) tuple. If the host is None, then
     the string could not be parsed as a host identifier with an optional port
@@ -173,12 +163,24 @@ def parse_address(address, allow_ranges=False):
 
     The host identifier may be a hostname (qualified or not), an IPv4 address,
     or an IPv6 address. If allow_ranges is True, then any of those may contain
-    [x:y] range specifications, e.g. foo[1:3] or foo[0:5]-bar[x-z].
+    [x:y] range specifications, for example, foo[1:3] or foo[0:5]-bar[x-z].
 
     The port number is an optional :NN suffix on an IPv4 address or host name,
     or a mandatory :NN suffix on any square-bracketed expression: IPv6 address,
     IPv4 address, or host name. (This means the only way to specify a port for
     an IPv6 address is to enclose it in square brackets.)
+
+    Args:
+        address (str): A string
+        allow_ranges (bool, optional): A boolean to allow ranges. Defaults to False.
+        only_valid_ips (bool, optional): A boolean to return only valid IP addresses. Defaults to False
+
+    Raises:
+        AnsibleError - Not valid network hostname
+        AnsibleParserError - Detected range but ignored
+
+    Returns:
+        A tuple containing host and port details for the given string
     """
 
     # First, we extract the port number if one is specified.
@@ -189,21 +191,23 @@ def parse_address(address, allow_ranges=False):
         if m:
             (address, port) = m.groups()
             port = int(port)
-            continue
 
     # What we're left with now must be an IPv4 or IPv6 address, possibly with
     # numeric ranges, or a hostname with alphanumeric ranges.
 
     host = None
     for matching in ['ipv4', 'ipv6', 'hostname']:
+        if only_valid_ips and matching == "hostname":
+            continue
         m = patterns[matching].match(address)
         if m:
             host = address
-            continue
 
     # If it isn't any of the above, we don't understand it.
     if not host:
-        raise AnsibleError("Not a valid network hostname: %s" % address)
+        if only_valid_ips:
+            raise AnsibleError(f"Not a valid IPv4 or IPv6 address: {address}")
+        raise AnsibleError(f"Not a valid network hostname: {address}")
 
     # If we get to this point, we know that any included ranges are valid.
     # If the caller is prepared to handle them, all is well.

@@ -198,20 +198,13 @@ def check_required_by(requirements, parameters, options_context=None):
         # Support strings (single-item lists)
         if isinstance(value, string_types):
             value = [value]
-        for required in value:
-            if required not in parameters or parameters[required] is None:
-                if key not in result:
-                    result[key] = []
-                result[key].append(required)
 
-    if not result:
-        return result
-
-    for key, missing in result.items():
-        msg = f"missing parameter(s) required by '{key}': {', '.join(missing)}"
-        if options_context:
-            msg = f"{msg} found in {' -> '.join(options_context)}"
-        raise TypeError(to_native(msg))
+        if missing := [required for required in value if required not in parameters or parameters[required] is None]:
+            msg = f"missing parameter(s) required by '{key}': {', '.join(missing)}"
+            if options_context:
+                msg = f"{msg} found in {' -> '.join(options_context)}"
+            raise TypeError(to_native(msg))
+    return result
 
 
 def check_required_arguments(argument_spec, parameters, options_context=None):

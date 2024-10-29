@@ -4,6 +4,39 @@ ansible-core 2.17 "Gallows Pole" Release Notes
 
 .. contents:: Topics
 
+v2.17.6rc1
+==========
+
+Release Summary
+---------------
+
+| Release Date: 2024-10-29
+| `Porting Guide <https://docs.ansible.com/ansible-core/2.17/porting_guides/porting_guide_core_2.17.html>`__
+
+Minor Changes
+-------------
+
+- ansible-test - Improve container runtime probe error handling. When unexpected probe output is encountered, an error with more useful debugging information is provided.
+
+Security Fixes
+--------------
+
+- include_vars action - Ensure that result masking is correctly requested when vault-encrypted files are read. (CVE-2024-8775)
+- task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``) is preserved. (CVE-2024-8775)
+- user action won't allow ssh-keygen, chown and chmod to run on existing ssh public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
+
+Bugfixes
+--------
+
+- Fix disabling SSL verification when installing collections and roles from git repositories. If ``--ignore-certs`` isn't provided, the value for the ``GALAXY_IGNORE_CERTS`` configuration option will be used (https://github.com/ansible/ansible/issues/83326).
+- Improve performance on large inventories by reducing the number of implicit meta tasks.
+- Use the requested error message in the ansible.module_utils.facts.timeout timeout function instead of hardcoding one.
+- ansible-test - Enable the ``sys.unraisablehook`` work-around for the ``pylint`` sanity test on Python 3.11. Previously the work-around was only enabled for Python 3.12 and later. However, the same issue has been discovered on Python 3.11.
+- debconf - set empty password values (https://github.com/ansible/ansible/issues/83214).
+- facts - skip if distribution file path is directory, instead of raising error (https://github.com/ansible/ansible/issues/84006).
+- user action will now require O(force) to overwrite the public part of an ssh key when generating ssh keys, as was already the case for the private part.
+- user module now avoids changing ownership of files symlinked in provided home dir skeleton
+
 v2.17.5
 =======
 

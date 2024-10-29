@@ -926,3 +926,54 @@ releases:
     - delay_type.yml
     - fix_errors.yml
     release_date: '2024-09-30'
+  2.17.6rc1:
+    changes:
+      bugfixes:
+      - Fix disabling SSL verification when installing collections and roles from
+        git repositories. If ``--ignore-certs`` isn't provided, the value for the
+        ``GALAXY_IGNORE_CERTS`` configuration option will be used (https://github.com/ansible/ansible/issues/83326).
+      - Improve performance on large inventories by reducing the number of implicit
+        meta tasks.
+      - Use the requested error message in the ansible.module_utils.facts.timeout
+        timeout function instead of hardcoding one.
+      - ansible-test - Enable the ``sys.unraisablehook`` work-around for the ``pylint``
+        sanity test on Python 3.11. Previously the work-around was only enabled for
+        Python 3.12 and later. However, the same issue has been discovered on Python
+        3.11.
+      - debconf - set empty password values (https://github.com/ansible/ansible/issues/83214).
+      - facts - skip if distribution file path is directory, instead of raising error
+        (https://github.com/ansible/ansible/issues/84006).
+      - user action will now require O(force) to overwrite the public part of an ssh
+        key when generating ssh keys, as was already the case for the private part.
+      - user module now avoids changing ownership of files symlinked in provided home
+        dir skeleton
+      minor_changes:
+      - ansible-test - Improve container runtime probe error handling. When unexpected
+        probe output is encountered, an error with more useful debugging information
+        is provided.
+      release_summary: '| Release Date: 2024-10-29
+
+        | `Porting Guide <https://docs.ansible.com/ansible-core/2.17/porting_guides/porting_guide_core_2.17.html>`__
+
+        '
+      security_fixes:
+      - include_vars action - Ensure that result masking is correctly requested when
+        vault-encrypted files are read. (CVE-2024-8775)
+      - task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``)
+        is preserved. (CVE-2024-8775)
+      - user action won't allow ssh-keygen, chown and chmod to run on existing ssh
+        public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
+    codename: Gallows Pole
+    fragments:
+    - 2.17.6rc1_summary.yaml
+    - ansible-test-probe-error-handling.yml
+    - ansible-test-pylint-fix.yml
+    - cve-2024-8775.yml
+    - debconf_empty_password.yml
+    - fix-ansible-galaxy-ignore-certs.yml
+    - fix-module-utils-facts-timeout.yml
+    - os_family.yml
+    - skip-implicit-flush_handlers-no-notify.yml
+    - user_action_fix.yml
+    - user_ssh_fix.yml
+    release_date: '2024-10-29'

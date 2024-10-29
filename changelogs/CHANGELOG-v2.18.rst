@@ -4,6 +4,27 @@ ansible-core 2.18 "Fool in the Rain" Release Notes
 
 .. contents:: Topics
 
+v2.18.0rc2
+==========
+
+Release Summary
+---------------
+
+| Release Date: 2024-10-29
+| `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
+
+Security Fixes
+--------------
+
+- include_vars action - Ensure that result masking is correctly requested when vault-encrypted files are read. (CVE-2024-8775)
+- task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``) is preserved. (CVE-2024-8775)
+- user action won't allow ssh-keygen, chown and chmod to run on existing ssh public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
+
+Bugfixes
+--------
+
+- user action will now require O(force) to overwrite the public part of an ssh key when generating ssh keys, as was already the case for the private part.
+
 v2.18.0rc1
 ==========
 
@@ -115,7 +136,6 @@ Breaking Changes / Porting Guide
 --------------------------------
 
 - Stopped wrapping all commands sent over SSH on a Windows target with a ``powershell.exe`` executable. This results in one less process being started on each command for Windows to improve efficiency, simplify the code, and make ``raw`` an actual raw command run with the default shell configured on the Windows sshd settings. This should have no affect on most tasks except for ``raw`` which now is not guaranteed to always be running in a PowerShell shell and from having the console output codepage set to UTF-8. To avoid this issue either swap to using ``ansible.windows.win_command``, ``ansible.windows.win_shell``, ``ansible.windows.win_powershell`` or manually wrap the raw command with the shell commands needed to set the output console encoding.
-- assert - Nested templating may result in an inability for the conditional to be evaluated. See the porting guide for more information.
 - persistent connection plugins - The ``ANSIBLE_CONNECTION_PATH`` config option no longer has any effect.
 
 Deprecated Features
@@ -139,11 +159,6 @@ Removed Features (previously deprecated)
 - paramiko_ssh - removed deprecated ssh_extra_args from the paramiko_ssh connection plugin (https://github.com/ansible/ansible/issues/82941).
 - play_context - remove deprecated PlayContext.verbosity property (https://github.com/ansible/ansible/issues/82945).
 - utils/listify - remove deprecated 'loader' argument from listify_lookup_plugin_terms API (https://github.com/ansible/ansible/issues/82949).
-
-Security Fixes
---------------
-
-- templating - Address issues where internal templating can cause unsafe variables to lose their unsafe designation (CVE-2023-5764)
 
 Bugfixes
 --------

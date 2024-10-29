@@ -13,8 +13,6 @@ releases:
         swap to using ``ansible.windows.win_command``, ``ansible.windows.win_shell``,
         ``ansible.windows.win_powershell`` or manually wrap the raw command with the
         shell commands needed to set the output console encoding.
-      - assert - Nested templating may result in an inability for the conditional
-        to be evaluated. See the porting guide for more information.
       - persistent connection plugins - The ``ANSIBLE_CONNECTION_PATH`` config option
         no longer has any effect.
       bugfixes:
@@ -351,9 +349,6 @@ releases:
       - play_context - remove deprecated PlayContext.verbosity property (https://github.com/ansible/ansible/issues/82945).
       - utils/listify - remove deprecated 'loader' argument from listify_lookup_plugin_terms
         API (https://github.com/ansible/ansible/issues/82949).
-      security_fixes:
-      - templating - Address issues where internal templating can cause unsafe variables
-        to lose their unsafe designation (CVE-2023-5764)
     codename: Fool in the Rain
     fragments:
     - 2.18.0b1_summary.yaml
@@ -442,7 +437,6 @@ releases:
     - config_init_fix.yml
     - correct-callback-fqcn-old-style-action-invocation.yml
     - correct_connection_callback.yml
-    - cve-2023-5764.yml
     - darwin_facts.yml
     - delay_type.yml
     - deprecate-safe-evals.yml
@@ -584,3 +578,26 @@ releases:
     - skip-implicit-flush_handlers-no-notify.yml
     - user_action_fix.yml
     release_date: '2024-10-14'
+  2.18.0rc2:
+    changes:
+      bugfixes:
+      - user action will now require O(force) to overwrite the public part of an ssh
+        key when generating ssh keys, as was already the case for the private part.
+      release_summary: '| Release Date: 2024-10-29
+
+        | `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
+
+        '
+      security_fixes:
+      - include_vars action - Ensure that result masking is correctly requested when
+        vault-encrypted files are read. (CVE-2024-8775)
+      - task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``)
+        is preserved. (CVE-2024-8775)
+      - user action won't allow ssh-keygen, chown and chmod to run on existing ssh
+        public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
+    codename: Fool in the Rain
+    fragments:
+    - 2.18.0rc2_summary.yaml
+    - cve-2024-8775.yml
+    - user_ssh_fix.yml
+    release_date: '2024-10-29'

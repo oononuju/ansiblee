@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright: (C) 2015 Abhijit Menon-Sen <ams@2ndQuadrant.com>

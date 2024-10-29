@@ -287,8 +287,7 @@ def get_encrypted_password(password, hashtype='sha512', salt=None, salt_size=Non
     hashtype = passlib_mapping.get(hashtype, hashtype)
 
     if PASSLIB_AVAILABLE and hashtype not in passlib_mapping and hashtype not in passlib_mapping.values():
-        choices = ', '.join(passlib_mapping)
-        raise AnsibleFilterError(f"{hashtype} is not in the list of supported passlib algorithms: {choices}")
+        raise AnsibleFilterError(f"{hashtype} is not in the list of supported passlib algorithms: {', '.join(passlib_mapping)}")
 
     try:
         return do_encrypt(password, hashtype, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)

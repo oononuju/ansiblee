@@ -141,9 +141,10 @@ class TaskExecutor:
                         unreachable |= (unreachable_item := item.get('unreachable', False))
 
                         if failed_item:
-                            self._task.ignore_errors |= item.pop('_ansible_ignore_errors')
+                            # ignore errors globally only when all failed items ignore errors
+                            self._task.ignore_errors &= item.pop('_ansible_ignore_errors')
                         if unreachable_item:
-                            self._task.ignore_unreachable |= item.pop('_ansible_ignore_unreachable')
+                            self._task.ignore_unreachable &= item.pop('_ansible_ignore_unreachable')
 
                         warnings.update(item.pop('warnings', []))
                         deprecations.update(item.pop('deprecations', []))

@@ -64,6 +64,19 @@ function pass_tests_multi {
 	fi
 }
 
+function pass_tests_unsupported_argument {
+        if [[ -z "$1" ]]; then
+                echo "Error: an argument is required."
+                exit 1
+        fi
+
+        local expected="ansible-pull: error: unrecognized arguments: ${1}"
+        if ! grep "${expected}" "${temp_log}"; then
+                echo "Did not fail as expected with: ${expected}"
+                exit 1
+        fi
+}
+
 export ANSIBLE_INVENTORY
 export ANSIBLE_HOST_PATTERN_MISMATCH
 
@@ -92,8 +105,6 @@ ANSIBLE_CONFIG='' ansible-pull -d "${pull_dir}" -U "${repo_dir}" conn_secret.yml
 # fail if we try do delete /var/tmp
 ANSIBLE_CONFIG='' ansible-pull -d var/tmp -U "${repo_dir}" --purge "$@"
 
-# test flushing the fact cache
-export ANSIBLE_CACHE_PLUGIN=jsonfile ANSIBLE_CACHE_PLUGIN_CONNECTION=./
-ansible-pull -d "${pull_dir}" -U "${repo_dir}" "$@" gather_facts.yml
-ansible-pull -d "${pull_dir}" -U "${repo_dir}" --flush-cache "$@" test_empty_facts.yml
-unset ANSIBLE_CACHE_PLUGIN ANSIBLE_CACHE_PLUGIN_CONNECTION
+# test unsupported options
+ansible-pull -d "${pull_dir}" -U "${repo_dir}" --list-hosts "$@" multi_play_1.yml 2> >(tee "${temp_log}") || true
+pass_tests_unsupported_argument --list-hosts

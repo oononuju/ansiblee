@@ -1,3 +1,2 @@
 minor_changes:
-- >
-  ansible, ansible-console, ansible-pull - add --flush-cache option (https://github.com/ansible/ansible/issues/83749).
+  - ansible cli - add --flush-cache option for ad-hoc commands (https://github.com/ansible/ansible/issues/83749).

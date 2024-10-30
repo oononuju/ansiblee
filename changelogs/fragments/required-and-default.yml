@@ -1,0 +1,3 @@
+---
+bugfixes:
+  - tests - update regex for detecting default and required values in FieldAttributes (https://github.com/ansible/ansible/issues/61460).

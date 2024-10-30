@@ -562,7 +562,7 @@ class CLI(ABC):
 
     @staticmethod
     def _flush_cache(inventory, variable_manager):
-
+        variable_manager.clear_facts('localhost')
         for host in inventory.list_hosts():
             hostname = host.get_name()
             variable_manager.clear_facts(hostname)

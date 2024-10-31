@@ -1,0 +1,8 @@
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - add_host:
+        name: "foo_{{ item }}"
+      loop:
+        - 1
+        - 2

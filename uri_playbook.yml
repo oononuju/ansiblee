@@ -1,0 +1,19 @@
+---
+- hosts: localhost
+  tasks:
+    - name: Read and decrypt the vaulted JSON file
+      slurp:
+        src: file.json
+      register: json_file
+
+    - name: Decode the Base64 content
+      set_fact:
+        decoded_json: "{{ json_file.content | b64decode }}"
+
+    - name: Send the decrypted JSON file
+      uri:
+        url: "http://localhost:8888/"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body: "{{ decoded_json }}"

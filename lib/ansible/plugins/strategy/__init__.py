@@ -695,11 +695,9 @@ class StrategyBase:
 
                     if 'add_host' in result_item or 'add_group' in result_item:
                         item_vars = _get_item_vars(result_item, original_task)
-                        found_task_vars = self._queued_task_cache.get((original_host.name, task_result._task._uuid))['task_vars']
+                        all_task_vars = self._queued_task_cache.get((original_host.name, task_result._task._uuid))['task_vars']
                         if item_vars:
-                            all_task_vars = combine_vars(found_task_vars, item_vars)
-                        else:
-                            all_task_vars = found_task_vars
+                            all_task_vars.update(item_vars)
                         all_task_vars[original_task.register] = wrap_var(result_item)
                         post_process_whens(result_item, original_task, Templar(self._loader), all_task_vars)
                         if original_task.loop or original_task.loop_with:

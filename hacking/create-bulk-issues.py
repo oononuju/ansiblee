@@ -43,8 +43,13 @@ class Issue:
             for label in self.labels:
                 cmd.extend(('--label', label))
 
-        process = subprocess.run(cmd, capture_output=True, check=True)
-        url = process.stdout.decode().strip()
+        try:
+            process = subprocess.run(cmd, capture_output=True, check=True, text=True)
+        except subprocess.CalledProcessError as ex:
+            print(f'>>> Standard Output\n{ex.stdout.strip()}\n>>> Standard Error\n{ex.stderr.strip()}\n>>> Exception')
+            raise
+
+        url = process.stdout.strip()
         return url
 
 

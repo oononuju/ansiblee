@@ -313,7 +313,21 @@ def create_deprecation_parser(subparser) -> None:
 
 
 def create_feature_parser(subparser) -> None:
-    parser: argparse.ArgumentParser = subparser.add_parser('feature')
+    epilog = """
+Example source YAML:
+
+default:
+  component: ansible-test
+  labels:
+    - ansible-test
+    - feature
+  assignee: "@me"
+features:
+  - title: Some title goes here
+    summary: A summary goes here.
+"""
+
+    parser: argparse.ArgumentParser = subparser.add_parser('feature', epilog=epilog, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.set_defaults(type=FeatureArgs)
     parser.set_defaults(command=feature_command)
 

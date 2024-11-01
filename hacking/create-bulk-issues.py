@@ -50,6 +50,8 @@ class Issue:
         try:
             process = subprocess.run(cmd, capture_output=True, check=True, text=True)
         except subprocess.CalledProcessError as ex:
+            print('>>> Note')
+            print(f"You may need to run 'gh auth refresh -s project' if 'gh' reports it cannot find the project {self.project!r} when it exists.")
             print(f'>>> Standard Output\n{ex.stdout.strip()}\n>>> Standard Error\n{ex.stderr.strip()}\n>>> Exception')
             raise
 

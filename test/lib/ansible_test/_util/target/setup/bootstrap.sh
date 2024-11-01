@@ -26,13 +26,13 @@ install_ssh_keys()
         echo "${ssh_private_key}" > "${ssh_private_key_path}"
 
         # add public key to authorized_keys
-        authoried_keys_path="${HOME}/.ssh/authorized_keys"
+        authorized_keys_path="${HOME}/.ssh/authorized_keys"
 
         # the existing file is overwritten to avoid conflicts (ex: RHEL on EC2 blocks root login)
-        cat "${public_key_path}" > "${authoried_keys_path}"
-        chmod 0600 "${authoried_keys_path}"
+        cat "${public_key_path}" > "${authorized_keys_path}"
+        chmod 0600 "${authorized_keys_path}"
 
-        # add localhost's server keys to known_hosts
+        # add localhost server keys to known_hosts
         known_hosts_path="${HOME}/.ssh/known_hosts"
 
         for key in /etc/ssh/ssh_host_*_key.pub; do

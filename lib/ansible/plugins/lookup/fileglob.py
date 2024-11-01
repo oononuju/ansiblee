@@ -91,7 +91,7 @@ class LookupModule(LookupBase):
         for term in terms:
             for path in found_paths:
                 term_results = [
-                    to_text(g.as_posix(), errors="surrogate_or_strict")
+                    to_text(str(g), errors="surrogate_or_strict")
                     for g in path.glob(term)
                     if g.is_file()
                 ]

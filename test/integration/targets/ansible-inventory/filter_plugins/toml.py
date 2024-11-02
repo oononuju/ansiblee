@@ -1,9 +1,7 @@
 # (c) 2017, Matt Martz <matt@sivel.net>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# Make coding more python3-ish
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import functools
 
@@ -14,7 +12,7 @@ except ImportError:
     pass
 
 from ansible.errors import AnsibleFilterError
-from ansible.module_utils._text import to_text
+from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.common._collections_compat import MutableMapping
 from ansible.module_utils.six import string_types
 

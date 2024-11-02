@@ -1,16 +1,11 @@
 # (c) 2019 Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
-
-import os
+from __future__ import annotations
 
 from ansible.errors import AnsibleError
 from ansible.cli.galaxy import with_collection_artifacts_manager
 from ansible.galaxy.collection import find_existing_collections
-from ansible.module_utils._text import to_bytes
-from ansible.utils.collection_loader import AnsibleCollectionConfig
+from ansible.module_utils.common.text.converters import to_bytes
 from ansible.utils.collection_loader._collection_finder import _get_collection_name_from_path
 from ansible.utils.display import Display
 
@@ -27,36 +22,6 @@ def list_collections(coll_filter=None, search_paths=None, dedupe=True, artifacts
     return collections
 
 
-def list_valid_collection_paths(search_paths=None, warn=False):
-    """
-    Filter out non existing or invalid search_paths for collections
-    :param search_paths: list of text-string paths, if none load default config
-    :param warn: display warning if search_path does not exist
-    :return: subset of original list
-    """
-
-    if search_paths is None:
-        search_paths = []
-
-    search_paths.extend(AnsibleCollectionConfig.collection_paths)
-
-    for path in search_paths:
-
-        b_path = to_bytes(path)
-        if not os.path.exists(b_path):
-            # warn for missing, but not if default
-            if warn:
-                display.warning("The configured collection path {0} does not exist.".format(path))
-            continue
-
-        if not os.path.isdir(b_path):
-            if warn:
-                display.warning("The configured collection path {0}, exists, but it is not a directory.".format(path))
-            continue
-
-        yield path
-
-
 @with_collection_artifacts_manager
 def list_collection_dirs(search_paths=None, coll_filter=None, artifacts_manager=None, dedupe=True):
     """
@@ -68,16 +33,31 @@ def list_collection_dirs(search_paths=None, coll_filter=None, artifacts_manager=
 
     namespace_filter = None
     collection_filter = None
+    has_pure_namespace_filter = False  # whether at least one coll_filter is a namespace-only filter
     if coll_filter is not None:
-        if '.' in coll_filter:
-            try:
-                namespace_filter, collection_filter = coll_filter.split('.')
-            except ValueError:
-                raise AnsibleError("Invalid collection pattern supplied: %s" % coll_filter)
-        else:
-            namespace_filter = coll_filter
+        if isinstance(coll_filter, str):
+            coll_filter = [coll_filter]
+        namespace_filter = set()
+        for coll_name in coll_filter:
+            if '.' in coll_name:
+                try:
+                    namespace, collection = coll_name.split('.')
+                except ValueError:
+                    raise AnsibleError("Invalid collection pattern supplied: %s" % coll_name)
+                namespace_filter.add(namespace)
+                if not has_pure_namespace_filter:
+                    if collection_filter is None:
+                        collection_filter = []
+                    collection_filter.append(collection)
+            else:
+                namespace_filter.add(coll_name)
+                has_pure_namespace_filter = True
+                collection_filter = None
+        namespace_filter = sorted(namespace_filter)
 
     for req in find_existing_collections(search_paths, artifacts_manager, namespace_filter=namespace_filter,
                                          collection_filter=collection_filter, dedupe=dedupe):
 
+        if not has_pure_namespace_filter and coll_filter is not None and req.fqcn not in coll_filter:
+            continue
         yield to_bytes(req.src)

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import abc
-import atexit
 import datetime
 import os
 import re
@@ -28,6 +27,7 @@ from ....util import (
 )
 
 from ....util_common import (
+    ExitHandler,
     ResultType,
     write_json_test_results,
 )
@@ -170,7 +170,7 @@ def cloud_init(args: IntegrationConfig, targets: tuple[IntegrationTarget, ...]) 
 
     if not args.explain and results:
         result_name = '%s-%s.json' % (
-            args.command, re.sub(r'[^0-9]', '-', str(datetime.datetime.utcnow().replace(microsecond=0))))
+            args.command, re.sub(r'[^0-9]', '-', str(datetime.datetime.now(tz=datetime.timezone.utc).replace(microsecond=0, tzinfo=None))))
 
         data = dict(
             clouds=results,
@@ -306,7 +306,7 @@ class CloudProvider(CloudBase):
         self.resource_prefix = self.ci_provider.generate_resource_prefix()
         self.resource_prefix = re.sub(r'[^a-zA-Z0-9]+', '-', self.resource_prefix)[:63].lower().rstrip('-')
 
-        atexit.register(self.cleanup)
+        ExitHandler.register(self.cleanup)
 
     def cleanup(self) -> None:
         """Clean up the cloud resource and any temporary configuration files after tests complete."""

@@ -4,8 +4,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # PYTHON_ARGCOMPLETE_OK
 
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 # ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
 from ansible.cli import CLI
@@ -18,7 +17,7 @@ from ansible import context
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.errors import AnsibleError
 from ansible.executor.playbook_executor import PlaybookExecutor
-from ansible.module_utils._text import to_bytes
+from ansible.module_utils.common.text.converters import to_bytes
 from ansible.playbook.block import Block
 from ansible.plugins.loader import add_all_plugin_dirs
 from ansible.utils.collection_loader import AnsibleCollectionConfig
@@ -30,8 +29,8 @@ display = Display()
 
 
 class PlaybookCLI(CLI):
-    ''' the tool to run *Ansible playbooks*, which are a configuration and multinode deployment system.
-        See the project home page (https://docs.ansible.com) for more information. '''
+    """ the tool to run *Ansible playbooks*, which are a configuration and multinode deployment system.
+        See the project home page (https://docs.ansible.com) for more information. """
 
     name = 'ansible-playbook'
 
@@ -144,10 +143,6 @@ class PlaybookCLI(CLI):
         # Fix this when we rewrite inventory by making localhost a real host (and thus show up in list_hosts())
         CLI.get_host_list(inventory, context.CLIARGS['subset'])
 
-        # flush fact cache if requested
-        if context.CLIARGS['flush_cache']:
-            self._flush_cache(inventory, variable_manager)
-
         # create the playbook executor, which manages running the plays via a task queue manager
         pbex = PlaybookExecutor(playbooks=context.CLIARGS['args'], inventory=inventory,
                                 variable_manager=variable_manager, loader=loader,
@@ -228,12 +223,6 @@ class PlaybookCLI(CLI):
             return 0
         else:
             return results
-
-    @staticmethod
-    def _flush_cache(inventory, variable_manager):
-        for host in inventory.list_hosts():
-            hostname = host.get_name()
-            variable_manager.clear_facts(hostname)
 
 
 def main(args=None):

@@ -2,8 +2,7 @@
 # Copyright (c) 2021 Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
 import pytest
 
@@ -68,7 +67,7 @@ ALIAS_TEST_CASES = [
 
 
 # id, argument spec, parameters, expected parameters, error
-ALIAS_TEST_CASES_INVALID = [
+ALIAS_TEST_CASES_INVALID: list[tuple[str, dict, dict, dict, str]] = [
     (
         "alias-invalid",
         {'path': {'aliases': 'bad'}},

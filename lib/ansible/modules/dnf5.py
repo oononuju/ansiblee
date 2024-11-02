@@ -2,24 +2,23 @@
 # Copyright 2023 Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
-__metaclass__ = type
 
 DOCUMENTATION = """
 module: dnf5
 author: Ansible Core Team
 description:
   - Installs, upgrade, removes, and lists packages and groups with the I(dnf5) package manager.
-  - "WARNING: The I(dnf5) package manager is still under development and not all features that the existing I(dnf) module
-    provides are implemented in I(dnf5), please consult specific options for more information."
+  - "WARNING: The I(dnf5) package manager is still under development and not all features that the existing M(ansible.builtin.dnf) module
+    provides are implemented in M(ansible.builtin.dnf5), please consult specific options for more information."
 short_description: Manages packages with the I(dnf5) package manager
 options:
   name:
     description:
       - "A package name or package specifier with version, like C(name-1.0).
-        When using state=latest, this can be '*' which means run: dnf -y update.
-        You can also pass a url or a local path to a rpm file.
+        When using O(state=latest), this can be C(*) which means run: C(dnf -y update).
+        You can also pass a url or a local path to an rpm file.
         To operate on several packages this can accept a comma separated string of packages or a list of packages."
       - Comparison operators for package version are valid here C(>), C(<), C(>=), C(<=). Example - C(name >= 1.0).
         Spaces around the operator are required.
@@ -33,20 +32,20 @@ options:
   list:
     description:
       - Various (non-idempotent) commands for usage with C(/usr/bin/ansible) and I(not) playbooks.
-        Use M(ansible.builtin.package_facts) instead of the C(list) argument as a best practice.
+        Use M(ansible.builtin.package_facts) instead of the O(list) argument as a best practice.
     type: str
   state:
     description:
-      - Whether to install (C(present), C(latest)), or remove (C(absent)) a package.
-      - Default is C(None), however in effect the default action is C(present) unless the C(autoremove) option is
-        enabled for this module, then C(absent) is inferred.
+      - Whether to install (V(present), V(latest)), or remove (V(absent)) a package.
+      - Default is V(None), however in effect the default action is V(present) unless the O(autoremove=true),
+        then V(absent) is inferred.
     choices: ['absent', 'present', 'installed', 'removed', 'latest']
     type: str
   enablerepo:
     description:
       - I(Repoid) of repositories to enable for the install/update operation.
         These repos will not persist beyond the transaction.
-        When specifying multiple repos, separate them with a ",".
+        When specifying multiple repos, separate them with a C(,).
     type: list
     elements: str
     default: []
@@ -54,7 +53,7 @@ options:
     description:
       - I(Repoid) of repositories to disable for the install/update operation.
         These repos will not persist beyond the transaction.
-        When specifying multiple repos, separate them with a ",".
+        When specifying multiple repos, separate them with a C(,).
     type: list
     elements: str
     default: []
@@ -65,7 +64,7 @@ options:
   disable_gpg_check:
     description:
       - Whether to disable the GPG checking of signatures of packages being
-        installed. Has an effect only if state is I(present) or I(latest).
+        installed. Has an effect only if O(state) is V(present) or V(latest).
       - This setting affects packages installed from a repository as well as
         "local" packages installed from the filesystem or a URL.
     type: bool
@@ -83,14 +82,14 @@ options:
     type: str
   autoremove:
     description:
-      - If C(true), removes all "leaf" packages from the system that were originally
+      - If V(true), removes all "leaf" packages from the system that were originally
         installed as dependencies of user-installed packages but which are no longer
-        required by any such package. Should be used alone or when state is I(absent)
+        required by any such package. Should be used alone or when O(state=absent).
     type: bool
     default: "no"
   exclude:
     description:
-      - Package name(s) to exclude when state=present, or latest. This can be a
+      - Package name(s) to exclude when O(state=present) or O(state=latest). This can be a
         list or a comma separated string.
     type: list
     elements: str
@@ -98,74 +97,76 @@ options:
   skip_broken:
     description:
       - Skip all unavailable packages or packages with broken dependencies
-        without raising an error. Equivalent to passing the --skip-broken option.
+        without raising an error. Equivalent to passing the C(--skip-broken) option.
     type: bool
     default: "no"
   update_cache:
     description:
       - Force dnf to check if cache is out of date and redownload if needed.
-        Has an effect only if state is I(present) or I(latest).
+        Has an effect only if O(state=present) or O(state=latest).
     type: bool
     default: "no"
     aliases: [ expire-cache ]
   update_only:
     description:
       - When using latest, only update installed packages. Do not install packages.
-      - Has an effect only if state is I(latest)
+      - Has an effect only if O(state=present) or O(state=latest).
     default: "no"
     type: bool
   security:
     description:
-      - If set to C(true), and C(state=latest) then only installs updates that have been marked security related.
+      - If set to V(true), and O(state=latest) then only installs updates that have been marked security related.
       - Note that, similar to C(dnf upgrade-minimal), this filter applies to dependencies as well.
     type: bool
     default: "no"
   bugfix:
     description:
-      - If set to C(true), and C(state=latest) then only installs updates that have been marked bugfix related.
+      - If set to V(true), and O(state=latest) then only installs updates that have been marked bugfix related.
       - Note that, similar to C(dnf upgrade-minimal), this filter applies to dependencies as well.
     default: "no"
     type: bool
   enable_plugin:
     description:
-      - This is currently a no-op as dnf5 itself does not implement this feature.
       - I(Plugin) name to enable for the install/update operation.
         The enabled plugin will not persist beyond the transaction.
+      - O(disable_plugin) takes precedence in case a plugin is listed in both O(enable_plugin) and O(disable_plugin).
+      - Requires python3-libdnf5 5.2.0.0+.
     type: list
     elements: str
     default: []
   disable_plugin:
     description:
-      - This is currently a no-op as dnf5 itself does not implement this feature.
       - I(Plugin) name to disable for the install/update operation.
         The disabled plugins will not persist beyond the transaction.
+      - O(disable_plugin) takes precedence in case a plugin is listed in both O(enable_plugin) and O(disable_plugin).
+      - Requires python3-libdnf5 5.2.0.0+.
     type: list
     default: []
     elements: str
   disable_excludes:
     description:
       - Disable the excludes defined in DNF config files.
-      - If set to C(all), disables all excludes.
-      - If set to C(main), disable excludes defined in [main] in dnf.conf.
-      - If set to C(repoid), disable excludes defined for given repo id.
+      - If set to V(all), disables all excludes.
+      - If set to V(main), disable excludes defined in C([main]) in C(dnf.conf).
+      - If set to V(repoid), disable excludes defined for given repo id.
     type: str
   validate_certs:
     description:
       - This is effectively a no-op in the dnf5 module as dnf5 itself handles downloading a https url as the source of the rpm,
-        but is an accepted parameter for feature parity/compatibility with the I(yum) module.
+        but is an accepted parameter for feature parity/compatibility with the M(ansible.builtin.dnf) module.
     type: bool
     default: "yes"
   sslverify:
     description:
       - Disables SSL validation of the repository server for this transaction.
-      - This should be set to C(false) if one of the configured repositories is using an untrusted or self-signed certificate.
+      - This should be set to V(false) if one of the configured repositories is using an untrusted or self-signed certificate.
     type: bool
     default: "yes"
   allow_downgrade:
     description:
       - Specify if the named package and version is allowed to downgrade
         a maybe already installed higher version of that package.
-        Note that setting allow_downgrade=True can make this module
+        Note that setting O(allow_downgrade=true) can make this module
         behave in a non-idempotent way. The task could end up with a set
         of packages that does not match the complete list of specified
         packages to install (because dependencies between the downgraded
@@ -175,8 +176,8 @@ options:
     default: "no"
   install_repoquery:
     description:
-      - This is effectively a no-op in DNF as it is not needed with DNF, but is an accepted parameter for feature
-        parity/compatibility with the I(yum) module.
+      - This is effectively a no-op in DNF as it is not needed with DNF.
+      - This option is deprecated and will be removed in ansible-core 2.20.
     type: bool
     default: "yes"
   download_only:
@@ -199,23 +200,30 @@ options:
   download_dir:
     description:
       - Specifies an alternate directory to store packages.
-      - Has an effect only if I(download_only) is specified.
+      - Has an effect only if O(download_only) is specified.
     type: str
   allowerasing:
     description:
-      - If C(true) it allows  erasing  of  installed  packages to resolve dependencies.
+      - If V(true) it allows  erasing  of  installed  packages to resolve dependencies.
     required: false
     type: bool
     default: "no"
   nobest:
     description:
-      - Set best option to False, so that transactions are not limited to best candidates only.
+      - This is the opposite of the O(best) option kept for backwards compatibility.
+      - Since ansible-core 2.17 the default value is set by the operating system distribution.
     required: false
     type: bool
-    default: "no"
+  best:
+    description:
+      - When set to V(true), either use a package with the highest version available or fail.
+      - When set to V(false), if the latest version cannot be installed go with the lower version.
+      - Default is set by the operating system distribution.
+    required: false
+    type: bool
+    version_added: "2.17"
   cacheonly:
     description:
-      - This is currently no-op as dnf5 does not implement the feature.
       - Tells dnf to run entirely from system cache; does not download or update metadata.
     type: bool
     default: "no"
@@ -224,7 +232,7 @@ extends_documentation_fragment:
 - action_common_attributes.flow
 attributes:
     action:
-        details: In the case of dnf, it has 2 action plugins that use it under the hood, M(ansible.builtin.yum) and M(ansible.builtin.package).
+        details: dnf5 has 2 action plugins that use it under the hood, M(ansible.builtin.dnf) and M(ansible.builtin.package).
         support: partial
     async:
         support: none
@@ -237,7 +245,6 @@ attributes:
     platform:
         platforms: rhel
 requirements:
-  - "python3"
   - "python3-libdnf5"
 version_added: 2.15
 """
@@ -351,30 +358,67 @@ libdnf5 = None
 
 def is_installed(base, spec):
     settings = libdnf5.base.ResolveSpecSettings()
-    query = libdnf5.rpm.PackageQuery(base)
-    query.filter_installed()
-    match, nevra = query.resolve_pkg_spec(spec, settings, True)
-    return match
+    installed_query = libdnf5.rpm.PackageQuery(base)
+    installed_query.filter_installed()
+    match, nevra = installed_query.resolve_pkg_spec(spec, settings, True)
+
+    # FIXME use `is_glob_pattern` function when available:
+    # https://github.com/rpm-software-management/dnf5/issues/1563
+    glob_patterns = set("*[?")
+    if any(set(char) & glob_patterns for char in spec):
+        available_query = libdnf5.rpm.PackageQuery(base)
+        available_query.filter_available()
+        available_query.resolve_pkg_spec(spec, settings, True)
+
+        return not (
+            {p.get_name() for p in available_query} - {p.get_name() for p in installed_query}
+        )
+    else:
+        return match
 
 
 def is_newer_version_installed(base, spec):
+    # FIXME investigate whether this function can be replaced by dnf5's allow_downgrade option
+    if "/" in spec:
+        spec = spec.split("/")[-1]
+        if spec.endswith(".rpm"):
+            spec = spec[:-4]
+
     try:
         spec_nevra = next(iter(libdnf5.rpm.Nevra.parse(spec)))
-    except RuntimeError:
+    except (RuntimeError, StopIteration):
         return False
-    spec_name = spec_nevra.get_name()
-    v = spec_nevra.get_version()
-    r = spec_nevra.get_release()
-    if not v or not r:
+
+    spec_version = spec_nevra.get_version()
+    if not spec_version:
         return False
-    spec_evr = "{}:{}-{}".format(spec_nevra.get_epoch() or "0", v, r)
 
-    query = libdnf5.rpm.PackageQuery(base)
-    query.filter_installed()
-    query.filter_name([spec_name])
-    query.filter_evr([spec_evr], libdnf5.common.QueryCmp_GT)
+    installed = libdnf5.rpm.PackageQuery(base)
+    installed.filter_installed()
+    installed.filter_name([spec_nevra.get_name()])
+    installed.filter_latest_evr()
+    try:
+        installed_package = list(installed)[-1]
+    except IndexError:
+        return False
 
-    return query.size() > 0
+    target = libdnf5.rpm.PackageQuery(base)
+    target.filter_name([spec_nevra.get_name()])
+    target.filter_version([spec_version])
+    spec_release = spec_nevra.get_release()
+    if spec_release:
+        target.filter_release([spec_release])
+    spec_epoch = spec_nevra.get_epoch()
+    if spec_epoch:
+        target.filter_epoch([spec_epoch])
+    target.filter_latest_evr()
+    try:
+        target_package = list(target)[-1]
+    except IndexError:
+        return False
+
+    # FIXME https://github.com/rpm-software-management/dnf5/issues/1104
+    return libdnf5.rpm.rpmvercmp(installed_package.get_evr(), target_package.get_evr()) == 1
 
 
 def package_to_dict(package):
@@ -395,8 +439,7 @@ def get_unneeded_pkgs(base):
     query = libdnf5.rpm.PackageQuery(base)
     query.filter_installed()
     query.filter_unneeded()
-    for pkg in query:
-        yield pkg
+    yield from query
 
 
 class Dnf5Module(YumDnf):
@@ -404,13 +447,30 @@ class Dnf5Module(YumDnf):
         super(Dnf5Module, self).__init__(module)
         self._ensure_dnf()
 
-        # FIXME https://github.com/rpm-software-management/dnf5/issues/402
-        self.lockfile = ""
         self.pkg_mgr_name = "dnf5"
 
-        # DNF specific args that are not part of YumDnf
-        self.allowerasing = self.module.params["allowerasing"]
-        self.nobest = self.module.params["nobest"]
+    def fail_on_non_existing_plugins(self, base):
+        # https://github.com/rpm-software-management/dnf5/issues/1460
+        try:
+            plugin_names = [p.get_name() for p in base.get_plugins_info()]
+        except AttributeError:
+            # plugins functionality requires python3-libdnf5 5.2.0.0+
+            # silently ignore here, the module will fail later when
+            # base.enable_disable_plugins is attempted to be used if
+            # user specifies enable_plugin/disable_plugin
+            return
+
+        msg = []
+        if enable_unmatched := set(self.enable_plugin).difference(plugin_names):
+            msg.append(
+                f"No matches were found for the following plugin name patterns while enabling libdnf5 plugins: {', '.join(enable_unmatched)}."
+            )
+        if disable_unmatched := set(self.disable_plugin).difference(plugin_names):
+            msg.append(
+                f"No matches were found for the following plugin name patterns while disabling libdnf5 plugins: {', '.join(disable_unmatched)}."
+            )
+        if msg:
+            self.module.fail_json(msg=" ".join(msg))
 
     def _ensure_dnf(self):
         locale = get_best_parsable_locale(self.module)
@@ -430,7 +490,6 @@ class Dnf5Module(YumDnf):
         system_interpreters = [
             "/usr/libexec/platform-python",
             "/usr/bin/python3",
-            "/usr/bin/python2",
             "/usr/bin/python",
         ]
 
@@ -453,27 +512,10 @@ class Dnf5Module(YumDnf):
             failures=[],
         )
 
-    def is_lockfile_pid_valid(self):
-        # FIXME https://github.com/rpm-software-management/dnf5/issues/402
-        return True
-
     def run(self):
-        if sys.version_info.major < 3:
-            self.module.fail_json(
-                msg="The dnf5 module requires Python 3.",
-                failures=[],
-                rc=1,
-            )
         if not self.list and not self.download_only and os.geteuid() != 0:
             self.module.fail_json(
                 msg="This command has to be run under the root user.",
-                failures=[],
-                rc=1,
-            )
-
-        if self.enable_plugin or self.disable_plugin:
-            self.module.fail_json(
-                msg="enable_plugin and disable_plugin options are not yet implemented in DNF5",
                 failures=[],
                 rc=1,
             )
@@ -485,7 +527,7 @@ class Dnf5Module(YumDnf):
             conf.config_file_path = self.conf_file
 
         try:
-            base.load_config_from_file()
+            base.load_config()
         except RuntimeError as e:
             self.module.fail_json(
                 msg=str(e),
@@ -504,7 +546,11 @@ class Dnf5Module(YumDnf):
                 self.disable_excludes = "*"
             conf.disable_excludes = self.disable_excludes
         conf.skip_broken = self.skip_broken
-        conf.best = not self.nobest
+        # best and nobest are mutually exclusive
+        if self.nobest is not None:
+            conf.best = not self.nobest
+        elif self.best is not None:
+            conf.best = self.best
         conf.install_weak_deps = self.install_weak_deps
         conf.gpgcheck = not self.disable_gpg_check
         conf.localpkg_gpgcheck = not self.disable_gpg_check
@@ -512,14 +558,32 @@ class Dnf5Module(YumDnf):
         conf.clean_requirements_on_remove = self.autoremove
         conf.installroot = self.installroot
         conf.use_host_config = True  # needed for installroot
-        conf.cacheonly = self.cacheonly
+        conf.cacheonly = "all" if self.cacheonly else "none"
+        if self.download_dir:
+            conf.destdir = self.download_dir
+
+        if self.enable_plugin:
+            try:
+                base.enable_disable_plugins(self.enable_plugin, True)
+            except AttributeError:
+                self.module.fail_json(msg="'enable_plugin' requires python3-libdnf5 5.2.0.0+")
+
+        if self.disable_plugin:
+            try:
+                base.enable_disable_plugins(self.disable_plugin, False)
+            except AttributeError:
+                self.module.fail_json(msg="'disable_plugin' requires python3-libdnf5 5.2.0.0+")
 
         base.setup()
+
+        # https://github.com/rpm-software-management/dnf5/issues/1460
+        self.fail_on_non_existing_plugins(base)
 
         log_router = base.get_logger()
         global_logger = libdnf5.logger.GlobalLogger()
         global_logger.set(log_router.get(), libdnf5.logger.Logger.Level_DEBUG)
-        logger = libdnf5.logger.create_file_logger(base)
+        # FIXME hardcoding the filename does not seem right, should libdnf5 expose the default file name?
+        logger = libdnf5.logger.create_file_logger(base, "dnf5.log")
         log_router.add_logger(logger)
 
         if self.update_cache:
@@ -544,7 +608,11 @@ class Dnf5Module(YumDnf):
             for repo in repo_query:
                 repo.enable()
 
-        sack.update_and_load_enabled_repos(True)
+        try:
+            sack.load_repos()
+        except AttributeError:
+            # dnf5 < 5.2.0.0
+            sack.update_and_load_enabled_repos(True)
 
         if self.update_cache and not self.names and not self.list:
             self.module.exit_json(
@@ -576,7 +644,11 @@ class Dnf5Module(YumDnf):
             self.module.exit_json(msg="", results=results, rc=0)
 
         settings = libdnf5.base.GoalJobSettings()
-        settings.group_with_name = True
+        try:
+            settings.set_group_with_name(True)
+        except AttributeError:
+            # dnf5 < 5.2.0.0
+            settings.group_with_name = True
         if self.bugfix or self.security:
             advisory_query = libdnf5.advisory.AdvisoryQuery(base)
             types = []
@@ -591,18 +663,12 @@ class Dnf5Module(YumDnf):
         results = []
         if self.names == ["*"] and self.state == "latest":
             goal.add_rpm_upgrade(settings)
-        elif self.state in {"install", "present", "latest"}:
+        elif self.state in {"installed", "present", "latest"}:
             upgrade = self.state == "latest"
             for spec in self.names:
                 if is_newer_version_installed(base, spec):
                     if self.allow_downgrade:
-                        if upgrade:
-                            if is_installed(base, spec):
-                                goal.add_upgrade(spec, settings)
-                            else:
-                                goal.add_install(spec, settings)
-                        else:
-                            goal.add_install(spec, settings)
+                        goal.add_install(spec, settings)
                 elif is_installed(base, spec):
                     if upgrade:
                         goal.add_upgrade(spec, settings)
@@ -630,7 +696,7 @@ class Dnf5Module(YumDnf):
         if transaction.get_problems():
             failures = []
             for log_event in transaction.get_resolve_logs():
-                if log_event.get_problem() == libdnf5.base.GoalProblem_NOT_FOUND and self.state in {"install", "present", "latest"}:
+                if log_event.get_problem() == libdnf5.base.GoalProblem_NOT_FOUND and self.state in {"installed", "present", "latest"}:
                     # NOTE dnf module compat
                     failures.append("No package {} available.".format(log_event.get_spec()))
                 else:
@@ -667,18 +733,17 @@ class Dnf5Module(YumDnf):
             if results:
                 msg = "Check mode: No changes made, but would have if not in check mode"
         else:
-            transaction.download(self.download_dir or "")
+            transaction.download()
             if not self.download_only:
-                if not self.disable_gpg_check and not transaction.check_gpg_signatures():
+                transaction.set_description("ansible dnf5 module")
+                result = transaction.run()
+                if result == libdnf5.base.Transaction.TransactionRunResult_ERROR_GPG_CHECK:
                     self.module.fail_json(
                         msg="Failed to validate GPG signatures: {}".format(",".join(transaction.get_gpg_signature_problems())),
                         failures=[],
                         rc=1,
                     )
-
-                transaction.set_description("ansible dnf5 module")
-                result = transaction.run()
-                if result != libdnf5.base.Transaction.TransactionRunResult_SUCCESS:
+                elif result != libdnf5.base.Transaction.TransactionRunResult_SUCCESS:
                     self.module.fail_json(
                         msg="Failed to install some of the specified packages",
                         failures=["{}: {}".format(transaction.transaction_result_to_string(result), log) for log in transaction.get_transaction_problems()],
@@ -697,10 +762,6 @@ class Dnf5Module(YumDnf):
 
 
 def main():
-    # Extend yumdnf_argument_spec with dnf-specific features that will never be
-    # backported to yum because yum is now in "maintenance mode" upstream
-    yumdnf_argument_spec["argument_spec"]["allowerasing"] = dict(default=False, type="bool")
-    yumdnf_argument_spec["argument_spec"]["nobest"] = dict(default=False, type="bool")
     Dnf5Module(AnsibleModule(**yumdnf_argument_spec)).run()
 
 

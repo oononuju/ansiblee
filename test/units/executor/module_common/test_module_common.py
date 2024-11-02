@@ -15,9 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-# Make coding more python3-ish
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import os.path
 
@@ -167,19 +165,18 @@ class TestDetectionRegexes:
     def test_no_detect_new_style_python_module_re(self, testcase):
         assert not amc.NEW_STYLE_PYTHON_MODULE_RE.search(testcase)
 
-    # pylint bug: https://github.com/PyCQA/pylint/issues/511
-    @pytest.mark.parametrize('testcase, result', CORE_PATHS)  # pylint: disable=undefined-variable
+    @pytest.mark.parametrize('testcase, result', CORE_PATHS)
     def test_detect_core_library_path_re(self, testcase, result):
         assert amc.CORE_LIBRARY_PATH_RE.search(testcase).group('path') == result
 
-    @pytest.mark.parametrize('testcase', (p[0] for p in COLLECTION_PATHS))  # pylint: disable=undefined-variable
+    @pytest.mark.parametrize('testcase', (p[0] for p in COLLECTION_PATHS))
     def test_no_detect_core_library_path_re(self, testcase):
         assert not amc.CORE_LIBRARY_PATH_RE.search(testcase)
 
-    @pytest.mark.parametrize('testcase, result', COLLECTION_PATHS)  # pylint: disable=undefined-variable
+    @pytest.mark.parametrize('testcase, result', COLLECTION_PATHS)
     def test_detect_collection_path_re(self, testcase, result):
         assert amc.COLLECTION_PATH_RE.search(testcase).group('path') == result
 
-    @pytest.mark.parametrize('testcase', (p[0] for p in CORE_PATHS))  # pylint: disable=undefined-variable
+    @pytest.mark.parametrize('testcase', (p[0] for p in CORE_PATHS))
     def test_no_detect_collection_path_re(self, testcase):
         assert not amc.COLLECTION_PATH_RE.search(testcase)

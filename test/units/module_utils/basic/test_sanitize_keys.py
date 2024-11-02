@@ -2,9 +2,7 @@
 # (c) 2020, Red Hat
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# Make coding more python3-ish
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 from ansible.module_utils.basic import sanitize_keys
 
@@ -51,7 +49,7 @@ def _run_comparison(obj):
 
 
 def test_sanitize_keys_dict():
-    """ Test that santize_keys works with a dict. """
+    """ Test that sanitize_keys works with a dict. """
 
     d = [
         None,

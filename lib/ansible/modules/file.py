@@ -34,9 +34,12 @@ options:
       not exist as the state did not change.
     - If V(directory), all intermediate subdirectories will be created if they
       do not exist. Since Ansible 1.7 they will be created with the supplied permissions.
+    - If V(empty_directory), same as O(state=directory) but will ensure it is also empty.
     - If V(file), with no other options, returns the current state of C(path).
     - If V(file), even with other options (such as O(mode)), the file will be modified if it exists but will NOT be created if it does not exist.
       Set to V(touch) or use the M(ansible.builtin.copy) or M(ansible.builtin.template) module if you want to create the file if it does not exist.
+    - If V(empty_file), same as O(state=file) but will ensure it exists and is also empty. Compared to O(state=touch) it also ensures to NOT change
+      the timestamps of existing empty files.
     - If V(hard), the hard link will be created or changed.
     - If V(link), the symbolic link will be created or changed.
     - If V(touch) (new in 1.4), an empty file will be created if the file does not
@@ -44,14 +47,7 @@ options:
       modification times (similar to the way V(touch) works from the command line).
     - Default is the current state of the file if it exists, V(directory) if O(recurse=yes), or V(file) otherwise.
     type: str
-    choices: [ absent, directory, file, hard, link, touch ]
-  empty:
-    description:
-    - >
-      Ensure the file O(state=file) or dicectory O(state=directory) is empty.
-    type: bool
-    default: no
-    version_added: '2.19'
+    choices: [ absent, directory, empty_directory, file, empty_file, hard, link, touch ]
   src:
     description:
     - Path of the file to link to.
@@ -89,7 +85,7 @@ options:
     description:
     - This parameter indicates the time the file's modification time should be set to.
     - Should be V(preserve) when no modification is required, C(YYYYMMDDHHMM.SS) when using default time format, or V(now).
-    - Default is None meaning that V(preserve) is the default for O(state=[file,directory,link,hard]) and V(now) is default for O(state=touch).
+    - Default is None meaning that V(preserve) is the default for O(state=[empty_file,empty_directory,file,directory,link,hard]) and V(now) is default for O(state=touch).
     type: str
     version_added: "2.7"
   modification_time_format:
@@ -103,7 +99,7 @@ options:
     description:
     - This parameter indicates the time the file's access time should be set to.
     - Should be V(preserve) when no modification is required, C(YYYYMMDDHHMM.SS) when using default time format, or V(now).
-    - Default is V(None) meaning that V(preserve) is the default for O(state=[file,directory,link,hard]) and V(now) is default for O(state=touch).
+    - Default is V(None) meaning that V(preserve) is the default for O(state=[empty_file,empty_directory,file,directory,link,hard]) and V(now) is default for O(state=touch).
     type: str
     version_added: '2.7'
   access_time_format:
@@ -224,8 +220,12 @@ EXAMPLES = r"""
 - name: Ensures no runtime systemd network definitions exist
   ansible.builtin.file:
     path: /run/systemd/network
-    state: directory
-    empty: yes
+    state: empty_directory
+
+- name: Ensure file exists and is empty
+  file:
+    dest: "/etc/foo.txt"
+    state: empty_file
 
 """
 RETURN = r"""
@@ -266,9 +266,9 @@ def additional_parameter_handling(module):
     # if state == absent:  Remove the directory
     # if state == touch:   Touch the directory
     # if state == directory: Assert the directory is the same as the one specified
-    #   if empty: Ensure directory has no children
+    # if state == empty_directory: Ensure directory has no children
     # if state == file:    place inside of the directory (use _original_basename)
-    #   if empty: Ensure file is empty (truncated to 0)
+    # if state == empty_file: Ensure file exists and is empty
     # if state == link:    place inside of the directory (use _original_basename.  Fallback to src?)
     # if state == hard:    place inside of the directory (use _original_basename.  Fallback to src?)
     params = module.params
@@ -306,13 +306,6 @@ def additional_parameter_handling(module):
     if params['src'] and params['state'] not in ('link', 'hard'):
         module.fail_json(
             msg="src option requires state to be 'link' or 'hard'",
-            path=params['path']
-        )
-
-    # Fail if 'empty' but no 'state' is specified
-    if params['empty'] and params['state'] not in ('directory', 'file'):
-        module.fail_json(
-            msg="empty option requires state to be 'directory' or 'file'",
             path=params['path']
         )
 
@@ -493,6 +486,8 @@ def update_timestamp_for_file(path, mtime, atime, diff=None):
 
 
 def keep_backward_compatibility_on_timestamps(parameter, state):
+    if state in ['empty_file', 'empty_directory'] and parameter is None:
+        return 'preserve'
     if state in ['file', 'hard', 'directory', 'link'] and parameter is None:
         return 'preserve'
     if state == 'touch' and parameter is None:
@@ -590,7 +585,13 @@ def ensure_absent(path, keep_empty=False, result=None):
                 __try_rmtree(b_path)
         else:
             if keep_empty:
-                __try_truncate(b_path)
+                if os.stat(b_path).st_size == 0:
+                    # If file is already empty report as
+                    # not changed, but keep changed state
+                    # in case it was created by caller.
+                    changed = result["changed"]
+                else:
+                    __try_truncate(b_path)
             else:
                 __try_unlink(b_path)
 
@@ -1020,8 +1021,7 @@ def main():
 
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(type='str', choices=['absent', 'directory', 'file', 'hard', 'link', 'touch']),
-            empty=dict(type='bool', default=False),
+            state=dict(type='str', choices=['absent', 'directory', 'empty_directory', 'file', 'empty_file', 'hard', 'link', 'touch']),
             path=dict(type='path', required=True, aliases=['dest', 'name']),
             _original_basename=dict(type='str'),  # Internal use only, for recursive ops
             recurse=dict(type='bool', default=False),
@@ -1042,7 +1042,6 @@ def main():
     params = module.params
 
     state = params['state']
-    empty = params['empty']
     recurse = params['recurse']
     force = params['force']
     follow = params['follow']
@@ -1069,18 +1068,18 @@ def main():
 
     if state == 'file':
         result = ensure_file_attributes(path, follow, timestamps)
-    elif state == 'directory':
+    elif state in ('directory', 'empty_directory'):
         result = ensure_directory(path, follow, recurse, timestamps)
     elif state == 'link':
         result = ensure_symlink(path, src, follow, force, timestamps)
     elif state == 'hard':
         result = ensure_hardlink(path, src, follow, force, timestamps)
-    elif state == 'touch':
+    elif state in ('touch', 'empty_file'):
         result = execute_touch(path, follow, timestamps)
     elif state == 'absent':
         result = ensure_absent(path)
 
-    if state in ('file', 'directory') and empty:
+    if state in ('empty_file', 'empty_directory'):
         result = ensure_absent(path, keep_empty=True, result=result)
 
     # 2024-11-03 Keep old behaviour for now

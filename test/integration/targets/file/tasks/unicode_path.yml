@@ -21,8 +21,7 @@
 - name: empty local file with unicode filename and content
   file:
     path: "{{ remote_tmp_dir_test }}/语/汉语.txt"
-    state: file
-    empty: true
+    state: empty_file
   register: empty_test_file_1
 
 - name: Use stat module to check if file exists and is empty.
@@ -34,8 +33,7 @@
 - name: empty local directory with unicode names
   file:
     path: "{{ remote_tmp_dir_test }}/语"
-    state: directory
-    empty: true
+    state: empty_directory
   register: empty_test_dir_1
 
 - name: Use stat module to check if file still exists.

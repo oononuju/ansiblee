@@ -433,7 +433,7 @@
   register: file15a_result
 
 - name: check newly created directory is detected as empty
-  file: dest={{remote_tmp_dir_test}}/sub1 state=directory empty=yes
+  file: dest={{remote_tmp_dir_test}}/sub1 state=empty_directory
   register: file15b_result
 
 - name: verify that the new directory was created
@@ -453,31 +453,31 @@
   register: file16a_result
 
 - name: 2nd create test files in the sub-directory
-  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=touch
+  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=touch modification_time=preserve access_time=preserve
   with_items:
   - file1
   - file2
   - file3
   register: file16b_result
 
-- name: 3rd create test files in the sub-directory with empty=yes
-  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=file empty=yes
+- name: 3rd create empty test files in the sub-directory
+  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=empty_file
   with_items:
   - file1
   - file2
   - file3
   register: file16c_result
 
-- name: 4th create test files in the sub-directory with empty=yes
-  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=file empty=yes
+- name: 4th create empty test files in the sub-directory
+  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=empty_file
   with_items:
   - file4
   - file5
   - file6
   register: file16d_result
 
-- name: 5th create test files in the sub-directory with empty=yes
-  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=file empty=yes
+- name: 5th create empty test files in the sub-directory
+  file: dest={{remote_tmp_dir_test}}/sub1/{{item}} state=empty_file
   with_items:
   - file4
   - file5
@@ -541,22 +541,21 @@
   with_items: "{{file16f_result.results}}"
 
 - name: empty sub-directory again
-  file: dest={{remote_tmp_dir_test}}/sub1 state=directory empty=yes
+  file: dest={{remote_tmp_dir_test}}/sub1 state=empty_directory
   register: file17_result
 
 - name: verify returned status of emptying sub-directory
   assert:
     that:
-      - 'item.changed == true'
-      - 'item.state == "directory"'
-  with_items: "{{file17_result.results}}"
+      - 'file17_result.changed == true'
+      - 'file17_result.state == "directory"'
 
 - name: 2nd create a test sub-directory
   file: dest={{remote_tmp_dir_test}}/sub1 state=directory
   register: file18a_result
 
 - name: 2nd check newly created directory is detected as empty
-  file: dest={{remote_tmp_dir_test}}/sub1 state=directory empty=yes
+  file: dest={{remote_tmp_dir_test}}/sub1 state=empty_directory
   register: file18b_result
 
 - name: verify that the new directory was created

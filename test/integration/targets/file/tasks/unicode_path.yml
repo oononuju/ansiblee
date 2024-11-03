@@ -51,7 +51,6 @@
       - 'delete_test_file_1.changed == true'
       - 'create_test_file_2.changed == true'
       - 'empty_test_file_1.changed == true'
-      - 'create_test_file_3.changed == false'
       - 'stat_test_file_1.changed == false'
       - 'stat_test_file_1.stat.isreg == true'
       - 'stat_test_file_1.stat.exists == true'

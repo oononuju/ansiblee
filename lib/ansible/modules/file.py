@@ -1083,6 +1083,14 @@ def main():
     if state in ('file', 'directory') and empty:
         result = ensure_absent(path, keep_empty=True, result=result)
 
+    # 2024-11-03 Keep old behaviour for now
+    # Prevent state from being defined when nothing changed.
+    # test/integration/targets/file/tasks/modification_time.yml:68 is checking for this.
+    if result["diff"]["after"]["state"] and result["diff"]["before"]["state"]:
+        if result["diff"]["after"]["state"] == result["diff"]["before"]["state"]:
+            del result["diff"]["after"]["state"]
+            del result["diff"]["before"]["state"]
+
     if not module._diff:
         result.pop('diff', None)
 

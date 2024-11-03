@@ -1087,7 +1087,7 @@ def main():
     # Prevent state from being defined when nothing changed.
     # test/integration/targets/file/tasks/modification_time.yml:68 is checking for this.
     if "diff" in result and "after" in result["diff"] and "before" in result["diff"]:
-        if result["diff"]["after"]["state"] and result["diff"]["before"]["state"]:
+        if "state" in result["diff"]["after"] and "state" in result["diff"]["before"]:
             if result["diff"]["after"]["state"] == result["diff"]["before"]["state"]:
                 del result["diff"]["after"]["state"]
                 del result["diff"]["before"]["state"]

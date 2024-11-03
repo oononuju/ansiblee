@@ -386,7 +386,7 @@ def recursive_set_attributes(b_path, follow, file_args, mtime, atime):
 
 
 def initial_diff(path, state, prev_state):
-    diff = {'before': {'path': path, 'state':prev_state},
+    diff = {'before': {'path': path, 'state': prev_state},
             'after': {'path': path, 'state': state},
             }
 
@@ -516,6 +516,7 @@ def execute_diff_peek(path):
 
     return appears_binary
 
+
 def __try_rmtree(fd):
     if module.check_mode:
         return
@@ -527,6 +528,7 @@ def __try_rmtree(fd):
             module.fail_json(
                 msg=f"rmtree failed: {to_native(e)}"
             )
+
 
 def __try_unlink(fd):
     if module.check_mode:
@@ -540,6 +542,7 @@ def __try_unlink(fd):
                 msg=f"unlink failed: {to_native(e)}"
             )
 
+
 def __try_truncate(fd):
     if module.check_mode:
         return
@@ -550,9 +553,12 @@ def __try_truncate(fd):
             msg=f"truncate failed: {to_native(e)}"
         )
 
-def ensure_absent(path, keep_empty=False, result={}):
+
+def ensure_absent(path, keep_empty=False, result=None):
     b_path = to_bytes(path, errors='surrogate_or_strict')
     prev_state = get_state(b_path)
+    if result is None:
+        result = {}
 
     if prev_state != 'absent':
         changed = True

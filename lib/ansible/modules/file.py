@@ -45,6 +45,13 @@ options:
     - Default is the current state of the file if it exists, V(directory) if O(recurse=yes), or V(file) otherwise.
     type: str
     choices: [ absent, directory, file, hard, link, touch ]
+  empty:
+    description:
+    - >
+      Ensure the file O(state=file) or dicectory O(state=directory) is empty.
+    type: bool
+    default: no
+    version_added: '2.19'
   src:
     description:
     - Path of the file to link to.
@@ -214,6 +221,12 @@ EXAMPLES = r"""
     path: /etc/foo
     state: absent
 
+- name: Ensures no runtime systemd network definitions exist
+  ansible.builtin.file:
+    path: /run/systemd/network
+    state: directory
+    empty: yes
+
 """
 RETURN = r"""
 dest:
@@ -253,7 +266,9 @@ def additional_parameter_handling(module):
     # if state == absent:  Remove the directory
     # if state == touch:   Touch the directory
     # if state == directory: Assert the directory is the same as the one specified
+    #   if empty: Ensure directory has no children
     # if state == file:    place inside of the directory (use _original_basename)
+    #   if empty: Ensure file is empty (truncated to 0)
     # if state == link:    place inside of the directory (use _original_basename.  Fallback to src?)
     # if state == hard:    place inside of the directory (use _original_basename.  Fallback to src?)
     params = module.params
@@ -291,6 +306,13 @@ def additional_parameter_handling(module):
     if params['src'] and params['state'] not in ('link', 'hard'):
         module.fail_json(
             msg="src option requires state to be 'link' or 'hard'",
+            path=params['path']
+        )
+
+    # Fail if 'empty' but no 'state' is specified
+    if params['empty'] and params['state'] not in ('directory', 'file'):
+        module.fail_json(
+            msg="empty option requires state to be 'directory' or 'file'",
             path=params['path']
         )
 
@@ -364,13 +386,11 @@ def recursive_set_attributes(b_path, follow, file_args, mtime, atime):
 
 
 def initial_diff(path, state, prev_state):
-    diff = {'before': {'path': path},
-            'after': {'path': path},
+    diff = {'before': {'path': path, 'state':prev_state},
+            'after': {'path': path, 'state': state},
             }
 
     if prev_state != state:
-        diff['before']['state'] = prev_state
-        diff['after']['state'] = state
         if state == 'absent' and prev_state == 'directory':
             walklist = {
                 'directories': [],
@@ -496,34 +516,79 @@ def execute_diff_peek(path):
 
     return appears_binary
 
+def __try_rmtree(fd):
+    if module.check_mode:
+        return
+    try:
+        shutil.rmtree(fd, ignore_errors=False)
+    except OSError as e:
+        # Ignore if already removed
+        if e.errno != errno.ENOENT:
+            module.fail_json(
+                msg=f"rmtree failed: {to_native(e)}"
+            )
 
-def ensure_absent(path):
+def __try_unlink(fd):
+    if module.check_mode:
+        return
+    try:
+        os.unlink(fd)
+    except OSError as e:
+        # Ignore if already removed
+        if e.errno != errno.ENOENT:
+            module.fail_json(
+                msg=f"unlink failed: {to_native(e)}"
+            )
+
+def __try_truncate(fd):
+    if module.check_mode:
+        return
+    try:
+        os.truncate(fd, 0)
+    except OSError as e:
+        module.fail_json(
+            msg=f"truncate failed: {to_native(e)}"
+        )
+
+def ensure_absent(path, keep_empty=False, result={}):
     b_path = to_bytes(path, errors='surrogate_or_strict')
     prev_state = get_state(b_path)
-    result = {}
 
     if prev_state != 'absent':
+        changed = True
         diff = initial_diff(path, 'absent', prev_state)
+        # When called by another action with an already
+        # populated state, merge with it.
+        if 'diff' in result:
+            if 'before' in result['diff']:
+                diff['before'] = result['diff']['before']
+            if 'after' in result['diff'] and 'state' in result['diff']['after']:
+                diff['after']['state'] = result['diff']['after']['state']
+        if 'changed' not in result:
+            result.update({'changed': False})
 
-        if not module.check_mode:
-            if prev_state == 'directory':
-                try:
-                    shutil.rmtree(b_path, ignore_errors=False)
-                except Exception as e:
-                    module.fail_json(
-                        msg=f"rmtree failed: {to_native(e)}"
-                    )
+        if prev_state == 'directory':
+            if keep_empty:
+                with os.scandir(b_path) as it:
+                    # If folder is already empty report as
+                    # not changed, but keep changed state
+                    # in case it was created by caller.
+                    changed = result["changed"]
+                    for child in it:
+                        changed = True
+                        if child.is_dir():
+                            __try_rmtree(child)
+                        else:
+                            __try_unlink(child)
             else:
-                try:
-                    os.unlink(b_path)
-                except OSError as e:
-                    if e.errno != errno.ENOENT:  # It may already have been removed
-                        module.fail_json(
-                            msg=f"unlinking failed: {to_native(e)}",
-                            path=path
-                        )
+                __try_rmtree(b_path)
+        else:
+            if keep_empty:
+                __try_truncate(b_path)
+            else:
+                __try_unlink(b_path)
 
-        result.update({'path': path, 'changed': True, 'diff': diff, 'state': 'absent'})
+        result.update({'path': path, 'changed': changed, 'diff': diff, 'state': diff['after']['state']})
     else:
         result.update({'path': path, 'changed': False, 'state': 'absent'})
 
@@ -950,6 +1015,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             state=dict(type='str', choices=['absent', 'directory', 'file', 'hard', 'link', 'touch']),
+            empty=dict(type='bool', default=False),
             path=dict(type='path', required=True, aliases=['dest', 'name']),
             _original_basename=dict(type='str'),  # Internal use only, for recursive ops
             recurse=dict(type='bool', default=False),
@@ -970,6 +1036,7 @@ def main():
     params = module.params
 
     state = params['state']
+    empty = params['empty']
     recurse = params['recurse']
     force = params['force']
     follow = params['follow']
@@ -1006,6 +1073,9 @@ def main():
         result = execute_touch(path, follow, timestamps)
     elif state == 'absent':
         result = ensure_absent(path)
+
+    if state in ('file', 'directory') and empty:
+        result = ensure_absent(path, keep_empty=True, result=result)
 
     if not module._diff:
         result.pop('diff', None)

@@ -3,8 +3,59 @@
     dest: "{{ remote_tmp_dir_test }}/语/汉语.txt"
     create: true
     line: 汉语
+  register: create_test_file_1
 
 - name: remove local file with unicode filename and content
   file:
     path: "{{ remote_tmp_dir_test }}/语/汉语.txt"
     state: absent
+  register: delete_test_file_1
+
+- name: create local file with unicode filename and content
+  lineinfile:
+    dest: "{{ remote_tmp_dir_test }}/语/汉语.txt"
+    create: true
+    line: 汉语
+  register: create_test_file_2
+
+- name: empty local file with unicode filename and content
+  file:
+    path: "{{ remote_tmp_dir_test }}/语/汉语.txt"
+    state: file
+    empty: true
+  register: empty_test_file_1
+
+- name: Use stat module to check if file exists and is empty.
+  stat:
+    path: "{{ remote_tmp_dir_test }}/语/汉语.txt"
+    follow: False
+  register: stat_test_file_1
+
+- name: empty local directory with unicode names
+  file:
+    path: "{{ remote_tmp_dir_test }}/语"
+    state: directory
+    empty: true
+  register: empty_test_dir_1
+
+- name: Use stat module to check if file still exists.
+  stat:
+    path: "{{ remote_tmp_dir_test }}/语/汉语.txt"
+    follow: False
+  register: stat_test_file_2
+
+- name: verify that the new directory was created
+  assert:
+    that:
+      - 'create_test_file_1.changed == true'
+      - 'delete_test_file_1.changed == true'
+      - 'create_test_file_2.changed == true'
+      - 'empty_test_file_1.changed == true'
+      - 'create_test_file_3.changed == false'
+      - 'stat_test_file_1.changed == false'
+      - 'stat_test_file_1.stat.isreg == true'
+      - 'stat_test_file_1.stat.exists == true'
+      - 'stat_test_file_1.stat.size == 0'
+      - 'empty_test_dir_1.changed == true'
+      - 'stat_test_file_2.changed == false'
+      - 'stat_test_file_2.stat.exists == false'

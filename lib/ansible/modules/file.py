@@ -85,7 +85,8 @@ options:
     description:
     - This parameter indicates the time the file's modification time should be set to.
     - Should be V(preserve) when no modification is required, C(YYYYMMDDHHMM.SS) when using default time format, or V(now).
-    - Default is None meaning that V(preserve) is the default for O(state=[empty_file,empty_directory,file,directory,link,hard]) and V(now) is default for O(state=touch).
+    - Default is None meaning that V(preserve) is the default for O(state=[empty_file,empty_directory,file,directory,link,hard])
+      and V(now) is default for O(state=touch).
     type: str
     version_added: "2.7"
   modification_time_format:
@@ -99,7 +100,8 @@ options:
     description:
     - This parameter indicates the time the file's access time should be set to.
     - Should be V(preserve) when no modification is required, C(YYYYMMDDHHMM.SS) when using default time format, or V(now).
-    - Default is V(None) meaning that V(preserve) is the default for O(state=[empty_file,empty_directory,file,directory,link,hard]) and V(now) is default for O(state=touch).
+    - Default is V(None) meaning that V(preserve) is the default for O(state=[empty_file,empty_directory,file,directory,link,hard])
+      and V(now) is default for O(state=touch).
     type: str
     version_added: '2.7'
   access_time_format:

@@ -4,66 +4,13 @@ ansible-core 2.18 "Fool in the Rain" Release Notes
 
 .. contents:: Topics
 
-v2.18.0rc2
-==========
+v2.18.0
+=======
 
 Release Summary
 ---------------
 
-| Release Date: 2024-10-29
-| `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
-
-Security Fixes
---------------
-
-- include_vars action - Ensure that result masking is correctly requested when vault-encrypted files are read. (CVE-2024-8775)
-- task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``) is preserved. (CVE-2024-8775)
-- user action won't allow ssh-keygen, chown and chmod to run on existing ssh public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
-
-Bugfixes
---------
-
-- user action will now require O(force) to overwrite the public part of an ssh key when generating ssh keys, as was already the case for the private part.
-
-v2.18.0rc1
-==========
-
-Release Summary
----------------
-
-| Release Date: 2024-10-14
-| `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
-
-Minor Changes
--------------
-
-- ansible-test - Default to Python 3.13 in the ``base`` and ``default`` containers.
-- ansible-test - Disable the ``deprecated-`` prefixed ``pylint`` rules as their results vary by Python version.
-- ansible-test - Improve container runtime probe error handling. When unexpected probe output is encountered, an error with more useful debugging information is provided.
-- ansible-test - Update ``pylint`` sanity test to use version 3.3.1.
-- ansible-test - Update the ``base`` and ``default`` containers.
-
-Bugfixes
---------
-
-- Errors now preserve stacked error messages even when YAML is involved.
-- Fix disabling SSL verification when installing collections and roles from git repositories. If ``--ignore-certs`` isn't provided, the value for the ``GALAXY_IGNORE_CERTS`` configuration option will be used (https://github.com/ansible/ansible/issues/83326).
-- Improve performance on large inventories by reducing the number of implicit meta tasks.
-- Use the requested error message in the ansible.module_utils.facts.timeout timeout function instead of hardcoding one.
-- ``package``/``dnf`` action plugins - provide the reason behind the failure to gather the ``ansible_pkg_mgr`` fact to identify the package backend
-- ansible-test - Enable the ``sys.unraisablehook`` work-around for the ``pylint`` sanity test on Python 3.11. Previously the work-around was only enabled for Python 3.12 and later. However, the same issue has been discovered on Python 3.11.
-- debconf - set empty password values (https://github.com/ansible/ansible/issues/83214).
-- dnf5 - fix traceback when ``enable_plugins``/``disable_plugins`` is used on ``python3-libdnf5`` versions that do not support this functionality
-- facts - skip if distribution file path is directory, instead of raising error (https://github.com/ansible/ansible/issues/84006).
-- user module now avoids changing ownership of files symlinked in provided home dir skeleton
-
-v2.18.0b1
-=========
-
-Release Summary
----------------
-
-| Release Date: 2024-09-24
+| Release Date: 2024-11-04
 | `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
 
 Minor Changes
@@ -86,6 +33,9 @@ Minor Changes
 - ansible-test - Add support for Python 3.13.
 - ansible-test - An ``ansible_core.egg-info`` directory is no longer generated when running tests.
 - ansible-test - Connection options can be set for ansible-test managed remote Windows instances.
+- ansible-test - Default to Python 3.13 in the ``base`` and ``default`` containers.
+- ansible-test - Disable the ``deprecated-`` prefixed ``pylint`` rules as their results vary by Python version.
+- ansible-test - Improve container runtime probe error handling. When unexpected probe output is encountered, an error with more useful debugging information is provided.
 - ansible-test - Improve the error message shown when an unknown ``--remote`` or ``--docker`` option is given.
 - ansible-test - Remove Python 2.7 compatibility imports.
 - ansible-test - Removed the ``vyos/1.1.8`` network remote as it is no longer functional.
@@ -100,7 +50,9 @@ Minor Changes
 - ansible-test - Update ``coverage`` to version 7.6.1.
 - ansible-test - Update ``http-test-container`` to version 3.0.0.
 - ansible-test - Update ``nios-test-container`` to version 5.0.0.
+- ansible-test - Update ``pylint`` sanity test to use version 3.3.1.
 - ansible-test - Update ``pypi-test-container`` to version 3.2.0.
+- ansible-test - Update the ``base`` and ``default`` containers.
 - ansible-test - Updated the frozen requirements for all sanity tests.
 - ansible-test - Upgrade ``pip`` used in ansible-test managed virtual environments from version 24.0 to 24.2.
 - ansible-test - Virtual environments created by ansible-test no longer include the ``wheel`` or ``setuptools`` packages.
@@ -160,6 +112,13 @@ Removed Features (previously deprecated)
 - play_context - remove deprecated PlayContext.verbosity property (https://github.com/ansible/ansible/issues/82945).
 - utils/listify - remove deprecated 'loader' argument from listify_lookup_plugin_terms API (https://github.com/ansible/ansible/issues/82949).
 
+Security Fixes
+--------------
+
+- include_vars action - Ensure that result masking is correctly requested when vault-encrypted files are read. (CVE-2024-8775)
+- task result processing - Ensure that action-sourced result masking (``_ansible_no_log=True``) is preserved. (CVE-2024-8775)
+- user action won't allow ssh-keygen, chown and chmod to run on existing ssh public key file, avoiding traversal on existing symlinks (CVE-2024-9902).
+
 Bugfixes
 --------
 
@@ -170,23 +129,28 @@ Bugfixes
 - COLOR_SKIP will not alter "included" events color display anymore.
 - Callbacks now correctly get the resolved connection plugin name as the connection used.
 - Darwin - add unit tests for Darwin hardware fact gathering.
+- Errors now preserve stacked error messages even when YAML is involved.
 - Fix ``SemanticVersion.parse()`` to store the version string so that ``__repr__`` reports it instead of ``None`` (https://github.com/ansible/ansible/pull/83831).
 - Fix a traceback when an environment variable contains certain special characters (https://github.com/ansible/ansible/issues/83498)
 - Fix an issue when setting a plugin name from an unsafe source resulted in ``ValueError: unmarshallable object`` (https://github.com/ansible/ansible/issues/82708)
 - Fix an issue where registered variable was not available for templating in ``loop_control.label`` on skipped looped tasks (https://github.com/ansible/ansible/issues/83619)
+- Fix disabling SSL verification when installing collections and roles from git repositories. If ``--ignore-certs`` isn't provided, the value for the ``GALAXY_IGNORE_CERTS`` configuration option will be used (https://github.com/ansible/ansible/issues/83326).
 - Fix for ``meta`` tasks breaking host/fork affinity with ``host_pinned`` strategy (https://github.com/ansible/ansible/issues/83294)
 - Fix handlers not being executed in lockstep using the linear strategy in some cases (https://github.com/ansible/ansible/issues/82307)
 - Fix rapid memory usage growth when notifying handlers using the ``listen`` keyword (https://github.com/ansible/ansible/issues/83392)
 - Fix the task attribute ``resolved_action`` to show the FQCN instead of ``None`` when ``action`` or ``local_action`` is used in the playbook.
 - Fix using ``module_defaults`` with ``local_action``/``action`` (https://github.com/ansible/ansible/issues/81905).
 - Fix using the current task's directory for looking up relative paths within roles (https://github.com/ansible/ansible/issues/82695).
+- Improve performance on large inventories by reducing the number of implicit meta tasks.
 - Remove deprecated config options DEFAULT_FACT_PATH, DEFAULT_GATHER_SUBSET, and DEFAULT_GATHER_TIMEOUT in favor of setting ``fact_path``, ``gather_subset`` and ``gather_timeout`` as ``module_defaults`` for ``ansible.builtin.setup``.
   These will apply to both the ``gather_facts`` play keyword, and any ``ansible.builtin.setup`` tasks.
   To configure these options only for the ``gather_facts`` keyword, set these options as play keywords also.
 - Set LANGUAGE environment variable is set to a non-English locale (https://github.com/ansible/ansible/issues/83608).
+- Use the requested error message in the ansible.module_utils.facts.timeout timeout function instead of hardcoding one.
 - ``ansible-galaxy install --help`` - Fix the usage text and document that the requirements file passed to ``-r`` can include collections and roles.
 - ``ansible-galaxy role install`` - update the default timeout to download archive URLs from 20 seconds to 60 (https://github.com/ansible/ansible/issues/83521).
 - ``end_host`` - fix incorrect return code when executing ``end_host`` in the ``rescue`` section (https://github.com/ansible/ansible/issues/83447)
+- ``package``/``dnf`` action plugins - provide the reason behind the failure to gather the ``ansible_pkg_mgr`` fact to identify the package backend
 - addressed issue of trailing text been ignored, non-ASCII characters are parsed, enhance white space handling and fixed overly permissive issue of human_to_bytes filter(https://github.com/ansible/ansible/issues/82075)
 - ansible-config will now properly template defaults before dumping them.
 - ansible-doc - fixed "inicates" typo in output
@@ -195,6 +159,7 @@ Bugfixes
 - ansible-doc - make colors configurable.
 - ansible-galaxy collection install - remove old installation info when installing collections (https://github.com/ansible/ansible/issues/83182).
 - ansible-galaxy role install - fix symlinks (https://github.com/ansible/ansible/issues/82702, https://github.com/ansible/ansible/issues/81965).
+- ansible-test - Enable the ``sys.unraisablehook`` work-around for the ``pylint`` sanity test on Python 3.11. Previously the work-around was only enabled for Python 3.12 and later. However, the same issue has been discovered on Python 3.11.
 - ansible-test - The ``pylint`` sanity test now includes the controller/target context of files when grouping them. This allows the ``--py-version`` option to be passed to ``pylint`` to indicate the minimum supported Python version for each test context, preventing ``pylint`` from defaulting to the Python version used to invoke the test.
 - ansible-test action-plugin-docs - Fix to check for sidecar documentation for action plugins
 - ansible_managed restored it's 'templatability' by ensuring the possible injection routes are cut off earlier in the process.
@@ -207,6 +172,7 @@ Bugfixes
 - copy - mtime/atime not updated. Fix now update mtime/atime(https://github.com/ansible/ansible/issues/83013)
 - csvfile lookup - give an error when no search term is provided using modern config syntax (https://github.com/ansible/ansible/issues/83689).
 - debconf - fix normalization of value representation for boolean vtypes in new packages (https://github.com/ansible/ansible/issues/83594)
+- debconf - set empty password values (https://github.com/ansible/ansible/issues/83214).
 - delay keyword is now a float, matching the underlying 'time' API and user expectations.
 - display - warn user about empty log filepath (https://github.com/ansible/ansible/issues/79959).
 - display now does a better job of mapping warnings/errors to the proper log severity when using ansible.log. We still use color as a fallback mapping (now prioritiezed by severity) but mostly rely on it beind directly set by warnning/errors calls.
@@ -217,12 +183,14 @@ Bugfixes
 - dnf - honor installroot for ``cachedir``, ``logdir`` and ``persistdir``
 - dnf - perform variable substitutions in ``logdir`` and ``persistdir``
 - dnf, dnf5 - fix for installing a set of packages by specifying them using a wildcard character (https://github.com/ansible/ansible/issues/83373)
+- dnf5 - fix traceback when ``enable_plugins``/``disable_plugins`` is used on ``python3-libdnf5`` versions that do not support this functionality
 - dnf5 - re-introduce the ``state: installed`` alias to ``state: present`` (https://github.com/ansible/ansible/issues/83960)
 - dnf5 - replace removed API calls
 - ensure we have logger before we log when we have increased verbosity.
 - facts - `support_discard` now returns `0` if either `discard_granularity` or `discard_max_hw_bytes` is zero; otherwise it returns the value of `discard_granularity`, as before (https://github.com/ansible/ansible/pull/83480).
 - facts - add a generic detection for VMware in product name.
 - facts - add facts about x86_64 flags to detect microarchitecture (https://github.com/ansible/ansible/issues/83331).
+- facts - skip if distribution file path is directory, instead of raising error (https://github.com/ansible/ansible/issues/84006).
 - fetch - add error message when using ``dest`` with a trailing slash that becomes a local directory - https://github.com/ansible/ansible/issues/82878
 - file - retrieve the link's full path when hard linking a soft link with follow (https://github.com/ansible/ansible/issues/33911).
 - fixed the issue of creating user directory using tilde(~) always reported "changed".(https://github.com/ansible/ansible/issues/82490)
@@ -268,6 +236,8 @@ Bugfixes
 - unsafe data - Address an incompatibility with ``AnsibleUnsafeText`` and ``AnsibleUnsafeBytes`` when pickling with ``protocol=0``
 - unsafe data - Enable directly using ``AnsibleUnsafeText`` with Python ``pathlib`` (https://github.com/ansible/ansible/issues/82414)
 - uri - deprecate 'yes' and 'no' value for 'follow_redirects' parameter.
+- user action will now require O(force) to overwrite the public part of an ssh key when generating ssh keys, as was already the case for the private part.
+- user module now avoids changing ownership of files symlinked in provided home dir skeleton
 - vault - handle vault password file value when it is directory (https://github.com/ansible/ansible/issues/42960).
 - vault.is_encrypted_file is now optimized to be called in runtime and not for being called in tests
 - vault_encrypted test documentation, name and examples have been fixed, other parts were clarified

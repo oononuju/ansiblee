@@ -1,0 +1,7 @@
+bugfixes:
+- >
+  ansible-galaxy collection init|build|list - remove unused options '--server', '--token', '--ignore-certs', and '--timeout'.
+- >
+  ansible-galaxy role init|list|remove - remove unused options '--server', '--token', '--ignore-certs', and '--timeout'.
+- >
+  ansible-galaxy role init - remove unused option '--offline'.

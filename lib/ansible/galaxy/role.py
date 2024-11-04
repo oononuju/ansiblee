@@ -86,7 +86,11 @@ class GalaxyRole(object):
         self._metadata_dependencies = None
         self._requirements = None
         self._install_info = None
-        self._validate_certs = not context.CLIARGS['ignore_certs']
+        try:
+            self._validate_certs = not context.CLIARGS['ignore_certs']
+        except KeyError:
+            # set default for inherently offline action
+            self._validate_certs = True
 
         display.debug('Validate TLS certificates: %s' % self._validate_certs)
 

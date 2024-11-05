@@ -1,0 +1,2 @@
+bugfixes:
+  - Templating will now preserve AnsibleUnsafe when a variable is referenced via hostvars

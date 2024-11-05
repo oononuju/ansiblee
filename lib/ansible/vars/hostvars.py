@@ -88,14 +88,16 @@ class HostVars(Mapping):
         self._variable_manager.set_host_facts(host, facts)
 
     def __contains__(self, host_name):
-        # does not use inventory.hosts so it can create localhost on demand
+        # does not use inventory.hosts so it can create implicit localhost on demand
         return self._find_host(host_name) is not None
 
     def __iter__(self):
-        yield from self._inventory.hosts
+        # include implicit localhost only if it has variables set
+        yield from self._inventory.hosts | {'localhost': self._inventory.localhost} if self._inventory.localhost else {}
 
     def __len__(self):
-        return len(self._inventory.hosts)
+        # include implicit localhost only if it has variables set
+        return len(self._inventory.hosts) + 1 if self._inventory.localhost else 0
 
     def __repr__(self):
         out = {}

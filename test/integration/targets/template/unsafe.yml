@@ -1,69 +1,146 @@
 - hosts: localhost
   gather_facts: false
   vars:
-    nottemplated: this should not be seen
-    imunsafe: !unsafe '{{ nottemplated }}'
-    unsafe_set: !unsafe '{{ "test" }}'
+    output_dir: "{{ lookup('env', 'OUTPUT_DIR') | default('/var/tmp') }}"
   tasks:
-
-    - set_fact:
+  - name: test unsafe
+    vars:
+      nottemplated: this should not be seen
+      imunsafe: !unsafe '{{ nottemplated }}'
+      unsafe_set: !unsafe '{{ "test" }}'
+    block:
+    - name: Create indirect ref multiline string
+      set_fact:
         this_was_unsafe: >
           {{ imunsafe }}
 
-    - set_fact:
+    - name: Create indirect ref to unsaf var
+      set_fact:
           this_always_safe: '{{ imunsafe }}'
 
-    - set_fact:
+    - name: Create indirect ref to unsafe string
+      set_fact:
         this_unsafe_set: "{{ unsafe_set }}"
+
+    - name: show vars on verbose
+      debug:
+        msg: '{{ item ~ ": " ~ lookup("vars", item) }}'
+      when: ansible_verbosity >= 1
+      loop:
+        - this_always_safe
+        - imunsafe
+        - this_was_unsafe
+        - nottemplated
+        - this_unsafe_set
 
     - name: ensure nothing was templated
       assert:
         that:
         - this_always_safe == imunsafe
-        - imunsafe == this_was_unsafe.strip()
-        - unsafe_set == this_unsafe_set.strip()
+        - this_was_unsafe.strip() == imunsafe
+        - this_was_unsafe.strip() != nottemplated
+        - this_was_unsafe.strip() != 'this should not be seen'
+        - this_unsafe_set.strip() == unsafe_set
+        - this_unsafe_set.strip() != "test"
 
+  - name: also check via hostvars
+    vars:
+      noo: this should not be visible
+    block:
+      - name: create unsafe hostvar
+        set_fact:
+          fact_list_of_unsafe_strings:
+            - !unsafe "{{noo}}"
 
-- hosts: localhost
-  gather_facts: false
-  vars:
-    output_dir: "{{ lookup('env', 'OUTPUT_DIR') }}"
-  tasks:
-    - set_fact:
-        unsafe_foo: "{{ lookup('list', var0) }}"
-      vars:
-        var0: "{{ var1 }}"
-        var1:
-          - unsafe
-
-    - assert:
-        that:
-          - "{{ unsafe_foo[0] | type_debug == 'AnsibleUnsafeText' }}"
-
-    - block:
-      - copy:
-          dest: "{{ file_name }}"
-          content: !unsafe "{{ i_should_not_be_templated }}"
-
-      - set_fact:
-          file_content: "{{ lookup('file', file_name) }}"
-
-      - assert:
-          that:
-            - not file_content is contains('unsafe')
-
-      - set_fact:
-          file_content: "{{ lookup('file', file_name_tmpl) }}"
+      - name: show vars on verbose
+        debug:
+          msg: '{{ item ~ ": " ~ lookup("vars", item) }}'
+        when: ansible_verbosity >= 1
+        loop:
+            - fact_list_of_unsafe_strings
+            - from_hostvars
         vars:
-          file_name_tmpl: "{{ file_name }}"
+          from_hostvars: "{{ hostvars[inventory_hostname]['fact_list_of_unsafe_strings'] }}"
 
-      - assert:
+      - name: Check that direct access is unsafe and not templated
+        assert:
           that:
-            - not file_content is contains('unsafe')
-      vars:
-        file_name: "{{ output_dir }}/unsafe_file"
-        i_should_not_be_templated: unsafe
-      always:
-        - file:
+            - item | type_debug == 'AnsibleUnsafeText'
+            - item != noo
+        loop: "{{ fact_list_of_unsafe_strings }}"
+
+      - name: Check that hostvars access is unsafe and not templated
+        assert:
+          that:
+            - item | type_debug == 'AnsibleUnsafeText'
+        loop: "{{ hostvars[inventory_hostname]['fact_list_of_unsafe_strings'] }}"
+
+  - name: test unsafe from lookup
+    vars:
+      var0: "{{ var1 }}"
+      var1:
+        - unsafe
+    block:
+      - name: Create var from lookup, should be unsafe
+        set_fact:
+            unsafe_foo: "{{ lookup('list', var0) }}"
+
+      - name: show vars on verbose
+        debug:
+          msg: '{{ item ~ ": " ~ lookup("vars", item) }}'
+        when: ansible_verbosity >= 1
+        loop: [unsafe_foo, var1, var0]
+
+      - name: Ensure var is unsafe and not templated
+        assert:
+          that:
+            - unsafe_foo[0] | type_debug == 'AnsibleUnsafeText'
+            - unsafe_foo[0] != var0
+            - unsafe_foo[0] != var1
+            - unsafe_foo[0] != ['unsafe']
+
+      - name: test unsafe lookup from file
+        vars:
+          file_name: "{{ output_dir }}/unsafe_file"
+          i_should_not_be_templated: unsafe
+        block:
+        - name: Create file with templatable content
+          copy:
             dest: "{{ file_name }}"
-            state: absent
+            content: !unsafe "{{ i_should_not_be_templated }}"
+
+        - name: Use file to create variable via lookup
+          set_fact:
+            file_content: "{{ lookup('file', file_name) }}"
+
+        - name: Ensure variable is unsafe and not templated
+          assert:
+            that:
+              - file_content | type_debug == 'AnsibleUnsafeText'
+              - file_content != i_should_not_be_templated
+              - not file_content is contains('unsafe')
+        always:
+          - name: cleanup file
+            file:
+              dest: "{{ file_name }}"
+              state: absent
+
+  - name: test module results unsafe
+    block:
+      - name: call bad module to create result
+        bad_module:
+        register: result
+
+      - name: check result direct access
+        assert:
+          that:
+            - not item.startswith('kill')
+            - item | type_debug == 'AnsibleUnsafeText'
+        loop: "{{ result.fact_list_of_unsafe_strings }}"
+
+      - name: check result via hostvars
+        assert:
+          that:
+            - not item.startswith('kill')
+            - item | type_debug == 'AnsibleUnsafeText'
+        loop: "{{ hostvars[inventory_hostname]['result']['fact_list_of_unsafe_strings'] }}"

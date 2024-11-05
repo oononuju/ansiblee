@@ -54,7 +54,7 @@ def collection_input(tmp_path_factory, collection_path_suffix):
     skeleton = os.path.join(os.path.dirname(os.path.split(__file__)[0]), 'cli', 'test_data', 'collection_skeleton')
 
     galaxy_args = ['ansible-galaxy', 'collection', 'init', '%s.%s' % (namespace, collection),
-                   '-c', '--init-path', test_dir, '--collection-skeleton', skeleton]
+                   '--init-path', test_dir, '--collection-skeleton', skeleton]
     GalaxyCLI(args=galaxy_args).run()
     collection_dir = os.path.join(test_dir, namespace, collection)
     output_dir = to_text(tmp_path_factory.mktemp('test-ÅÑŚÌβŁÈ Collections Output'))

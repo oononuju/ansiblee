@@ -64,7 +64,7 @@ class TestGalaxy(unittest.TestCase):
         shutil.rmtree("./delete_me", ignore_errors=True)
 
         # creating framework for a role
-        gc = GalaxyCLI(args=["ansible-galaxy", "init", "--offline", "delete_me"])
+        gc = GalaxyCLI(args=["ansible-galaxy", "init", "delete_me"])
         gc.run()
         cls.role_dir = "./delete_me"
         cls.role_name = "delete_me"
@@ -215,7 +215,6 @@ class TestGalaxy(unittest.TestCase):
         """ testing the options parser when the action 'init' is given """
         gc = GalaxyCLI(args=["ansible-galaxy", "init", "foo"])
         gc.parse()
-        assert not context.CLIARGS['offline']
         assert not context.CLIARGS['force']
 
     def test_parse_install(self):
@@ -279,7 +278,7 @@ class ValidRoleTests(object):
         args = ['ansible-galaxy']
         if use_explicit_type:
             args += ['role']
-        args += ['init', '-c', '--offline'] + galaxy_args + ['--init-path', cls.test_dir, cls.role_name]
+        args += ['init'] + galaxy_args + ['--init-path', cls.test_dir, cls.role_name]
 
         gc = GalaxyCLI(args=args)
         gc.run()
@@ -480,7 +479,7 @@ def test_verbosity_arguments(cli_args, expected, monkeypatch):
 def collection_skeleton(request, tmp_path_factory):
     name, skeleton_path = request.param
 
-    galaxy_args = ['ansible-galaxy', 'collection', 'init', '-c']
+    galaxy_args = ['ansible-galaxy', 'collection', 'init']
 
     if skeleton_path is not None:
         galaxy_args += ['--collection-skeleton', skeleton_path]

@@ -285,17 +285,17 @@ EXAMPLES = """
 
 - name: Run the equivalent of "apt-get update" as a separate step
   ansible.builtin.apt:
-    update_cache: yes
+    update_cache: true
 
 - name: Only run "update_cache=yes" if the last one is more than 3600 seconds ago
   ansible.builtin.apt:
-    update_cache: yes
+    update_cache: true
     cache_valid_time: 3600
 
 - name: Pass options to dpkg on run
   ansible.builtin.apt:
     upgrade: dist
-    update_cache: yes
+    update_cache: true
     dpkg_options: 'force-confold,force-confdef'
 
 - name: Install a .deb package
@@ -313,20 +313,20 @@ EXAMPLES = """
 
 - name: Remove useless packages from the cache
   ansible.builtin.apt:
-    autoclean: yes
+    autoclean: true
 
 - name: Remove dependencies that are no longer required
   ansible.builtin.apt:
-    autoremove: yes
+    autoremove: true
 
 - name: Remove dependencies that are no longer required and purge their configuration files
   ansible.builtin.apt:
-    autoremove: yes
+    autoremove: true
     purge: true
 
 - name: Run the equivalent of "apt-get clean" as a separate step
   ansible.builtin.apt:
-    clean: yes
+    clean: true
 """
 
 RETURN = """

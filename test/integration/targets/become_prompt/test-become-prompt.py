@@ -9,20 +9,18 @@ import sys
 import pexpect
 
 
-os.environ['ANSIBLE_AGNOSTIC_BECOME_PROMPT'] = 'False'
+os.environ["ANSIBLE_AGNOSTIC_BECOME_PROMPT"] = "False"
 
 out = pexpect.run(
-    'ansible -c ssh -i localhost, -u cliuser1 -e ansible_python_interpreter={0} '
-    '-m command -a whoami -Kkb --become-user cliuser2 localhost'.format(sys.argv[1]),
+    "ansible -c ssh -i localhost, -u cliuser1 -e ansible_python_interpreter={0} "
+    "-m command -a whoami -Kkb --become-user cliuser2 localhost".format(sys.argv[1]),
     events={
-        'SSH password:': 'secretpassword\n',
-        'SUDO password': 'secretpassword\n',
+        "SSH password:": "secretpassword\n",
+        "SUDO password": "secretpassword\n",
     },
-    timeout=10
+    timeout=10,
 )
 
 print(out)
 
-assert b'The setting AGNOSTIC_BECOME_PROMPT to False' in out
-
-
+assert b"The setting AGNOSTIC_BECOME_PROMPT to False" in out

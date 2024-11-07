@@ -1538,7 +1538,6 @@ GALAXY_COLLECTION_IMPORT_POLL_FACTOR:
   version_added: "2.18"
 HOST_KEY_CHECKING:
   # NOTE: constant not in use by ssh/paramiko plugins anymore, but they do support the same configuration sources
-  # TODO: check non ssh connection plugins for use/migration
   name: Toggle host/key check
   default: True
   description:
@@ -1548,6 +1547,10 @@ HOST_KEY_CHECKING:
   ini:
   - {key: host_key_checking, section: defaults}
   type: boolean
+  deprecated:
+    why: This option was moved to the individual plugin itself
+    version: "2.22"
+    alternatives: Use the option from the plugin itself.
 HOST_PATTERN_MISMATCH:
   name: Control host pattern mismatch behaviour
   default: 'warning'

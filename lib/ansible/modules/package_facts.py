@@ -459,7 +459,7 @@ class PKG_INFO(CLIMgr):
 def main():
 
     # get supported pkg managers
-    PKG_MANAGERS = get_all_pkg_managers()
+    PKG_MANAGERS = sorted(get_all_pkg_managers())
     PKG_MANAGER_NAMES = [x.lower() for x in PKG_MANAGERS.keys()]
     # add aliases
     PKG_MANAGER_NAMES.extend([alias for alist in ALIASES.values() for alias in alist])

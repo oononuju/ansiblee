@@ -793,7 +793,7 @@ DEFAULT_LIBVIRT_LXC_NOSECLABEL:
   - {key: libvirt_lxc_noseclabel, section: selinux}
   type: boolean
   version_added: "2.1"
-    deprecated:
+  deprecated:
     why: This option was moved to the plugin itself
     version: "2.22"
     alternatives: Use the option from the plugin itself.

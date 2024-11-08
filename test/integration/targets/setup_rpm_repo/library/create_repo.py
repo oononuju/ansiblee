@@ -18,6 +18,7 @@ try:
     from rpmfluff.utils import expectedArch
     from rpmfluff.yumrepobuild import YumRepoBuild
 except ImportError:
+    expectedArch = None  # define here to avoid NameError as it is used on top level in SPECS
     HAS_RPMFLUFF = False
 
 

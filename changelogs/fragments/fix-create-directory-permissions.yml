@@ -1,0 +1,3 @@
+bugfixes:
+  - Create ~/.ssh/ with a specific permissions for security if it's not exist (https://github.com/ansible/ansible/issues/84286)
+  - Optimize code for _save_ssh_host_keys() in paramiko_ssh.py to reduce duplicate code

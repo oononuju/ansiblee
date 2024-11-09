@@ -605,25 +605,26 @@ class Connection(ConnectionBase):
             return
 
         path = os.path.expanduser("~/.ssh")
-        makedirs_safe(path)
+        makedirs_safe(path, mode=0o700)
 
         with open(filename, 'w') as f:
 
+            keys_added_by_ansible = []
             for hostname, keys in self.ssh._host_keys.items():
 
                 for keytype, key in keys.items():
 
                     # was f.write
                     added_this_time = getattr(key, '_added_by_ansible_this_time', False)
+                    line_data = (hostname, keytype, key.get_base64())
                     if not added_this_time:
-                        f.write("%s %s %s\n" % (hostname, keytype, key.get_base64()))
+                        f.write("%s %s %s\n" % line_data)
+                    else:
+                        keys_added_by_ansible.append(line_data)
 
-            for hostname, keys in self.ssh._host_keys.items():
+            for line_data in keys_added_by_ansible:
 
-                for keytype, key in keys.items():
-                    added_this_time = getattr(key, '_added_by_ansible_this_time', False)
-                    if added_this_time:
-                        f.write("%s %s %s\n" % (hostname, keytype, key.get_base64()))
+                f.write("%s %s %s\n" % line_data)
 
     def reset(self) -> None:
         if not self._connected:
@@ -650,7 +651,7 @@ class Connection(ConnectionBase):
             # that are starting up.)
             lockfile = self.keyfile.replace("known_hosts", ".known_hosts.lock")
             dirname = os.path.dirname(self.keyfile)
-            makedirs_safe(dirname)
+            makedirs_safe(dirname, mode=0o700)
 
             KEY_LOCK = open(lockfile, 'w')
             fcntl.lockf(KEY_LOCK, fcntl.LOCK_EX)

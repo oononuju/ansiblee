@@ -1113,8 +1113,7 @@ def update_url_params(url, params):
     :returns: str
         The updated URL with the new or modified query parameters.
 
-    This function parses the original URL, merges the given parameters with 
-    existing ones, and returns a new URL string with the updated query parameters.
+    This function parses the original URL, merges the given parameters with existing ones, and returns a new URL string with the updated query parameters.
 
     Example:
         url = "http://example.com/path?existing_param=value"

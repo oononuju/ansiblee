@@ -452,9 +452,7 @@ def test_params_parameter():
     payload = {'key1': 'value1', 'key2': 'value2'}
     r = update_url_params('https://httpbin.org/get', payload)
     assert r == "https://httpbin.org/get?key1=value1&key2=value2"
-    
     r = update_url_params('https://httpbin.org/get?key1=oldValue', payload)
     assert r == "https://httpbin.org/get?key1=value1&key2=value2"
-
     r = update_url_params('https://httpbin.org/get?key2=oldValue', payload)
     assert r == "https://httpbin.org/get?key2=value2&key1=value1"

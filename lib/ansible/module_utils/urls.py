@@ -50,7 +50,7 @@ import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from http import cookiejar
-from urllib.parse import unquote, urlparse, urlunparse
+from urllib.parse import unquote, urlparse, urlunparse, ParseResult, parse_qs, urlencode
 from urllib.request import BaseHandler
 
 try:
@@ -1100,6 +1100,44 @@ def prepare_multipart(fields):
         parser(headers)['content-type'],  # Message converts to native strings
         b_content
     )
+
+
+def update_url_params(url, params):
+    """Updates the query parameters of a given URL with additional parameters.
+
+    :arg url: str or ParseResult
+        The base URL or parsed URL object to update.
+    :arg params: dict
+        A dictionary of query parameters to add or update in the URL.
+
+    :returns: str
+        The updated URL with the new or modified query parameters.
+
+    This function parses the original URL, merges the given parameters with 
+    existing ones, and returns a new URL string with the updated query parameters.
+
+    Example:
+        url = "http://example.com/path?existing_param=value"
+        params = {"new_param": "new_value", "existing_param": "updated_value"}
+        result = update_url_params(url, params)
+        // result: "http://example.com/path?existing_param=updated_value&new_param=new_value"
+    """
+
+    if isinstance(url, ParseResult):
+        o = url
+    else:
+        o = urlparse(url)
+    _params = {
+        **parse_qs(o.query),
+        **params
+    }
+    new = o._replace(
+        query=urlencode(
+            _params,
+            doseq=True
+        )
+    )
+    return new.geturl()
 
 
 #

@@ -19,18 +19,17 @@ import typing as t
 from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible import constants as C
 from ansible.module_utils.common.text.converters import to_bytes, to_text, to_native
-from ansible.plugins.loader import vault_loader
 from ansible.utils.display import Display
 from ansible.utils.path import makedirs_safe, unfrackpath
 
 if t.TYPE_CHECKING:  # pragma: nocover
-    from ansible.parsing.vault.methods import VaultMethodBase
+    from ansible.plugins.vault import VaultBase
 
 display = Display()
 b_HEADER = b'$ANSIBLE_VAULT'
 SUPPORTED_ENVELOPE_VERSIONS = {b'1.1': 3, b'1.2': 4}
 
-_VAULT_METHOD_CONFIG_KEY: t.Final[str] = 'VAULT_METHOD'
+_VAULT_METHOD_CONFIG_KEY: t.Final[str] = 'VAULT_PLUGIN'
 
 
 class AnsibleVaultError(AnsibleError):
@@ -195,16 +194,17 @@ def describe_vault_methods() -> dict[str, str]:
     return C.config.get_configuration_definition(_VAULT_METHOD_CONFIG_KEY)['choices']
 
 
-def load_vault_method(method_name: str | None) -> type[VaultMethodBase]:
+def load_vault_method(method_name: str | None) -> type[VaultBase]:
     """Loads and returns the method class for a matching method name."""
+    # avoid circular deps
+    from ansible.plugins.loader import vault_loader
 
     try:
-        method_name = C.config.get_config_value('VAULT_METHOD', direct={'VAULT_METHOD': method_name})
+        method_name = C.config.get_config_value(_VAULT_METHOD_CONFIG_KEY, direct={_VAULT_METHOD_CONFIG_KEY: method_name})
     except AnsibleOptionsError as e:
         raise AnsibleVaultError(f'Unsupported vault method {method_name!r}') from e
 
-    vault_plugin = vault_loader.get(method_name)
-    return vault_plugin
+    return vault_loader.get(method_name)
 
 
 def verify_secret_is_not_empty(secret, msg=None):

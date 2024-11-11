@@ -14,7 +14,7 @@ from ansible.plugins import AnsiblePlugin
 VaultSecretError = AnsibleVaultPasswordError
 
 
-class VaultMethodBase(AnsiblePlugin):
+class VaultBase(AnsiblePlugin):
     """Base class all vault methods must implement."""
 
     # Do not add shared code here unless absolutely necessary.

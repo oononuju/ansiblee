@@ -1655,9 +1655,9 @@ become_loader = PluginLoader(
     'become_plugins'
 )
 vault_loader = PluginLoader(
-    'VaultMethod',
+    'Vault',
     'ansible.plugins.vault',
     C.VAULT_PLUGIN_PATH,
     'vault_plugins',
-    required_base_class='VaultMethodBase',
+    required_base_class='VaultBase',
 )

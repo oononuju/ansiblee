@@ -25,7 +25,7 @@ def do_vault(data, secret, salt=None, vault_id='filter_default', wrap_object=Fal
         raise AnsibleFilterTypeError("Can only vault strings, instead we got: %s" % type(data))
 
     if method_name is not None:
-        choices = C.config.get_config_choices('VAULT_METHOD')
+        choices = C.config.get_config_choices('VAULT_PLUGIN')
         if method_name not in choices:
             raise AnsibleFilterTypeError("Invalid vault encryption method '{method_name}', valid choices are: %s" % ', '.join(choices))
 

@@ -6,25 +6,31 @@ from __future__ import annotations
 DOCUMENTATION = """
     name: aes256
     version_added: "2.4"
-    short_description: Legacy AES256 with PBKDF2HMAC key derivation and double hexlify byte shield.
+    short_description: AES256 and PBKDF2HMAC
+    description:
+        - AES256 with PBKDF2HMAC key derivation and double hexlify byte shield/armor.
     requirements:
         - cryptography (python)
     options:
         salt:
-            description: 
+            description:
                 - Encryption salt to use, if not set it will be random.
-                - This is mostly here for having a reproducible result when testing and should not be set in production use
+                - This is mostly here for having a reproducible result when testing and should not be set in production use.
             type: str
+            deprecated:
+                why: While disabled by default, a lot of samples using a common salt can make it easy for attackers to deduce the vault secret
+                alternatives: None, a random salt will always be generated
+                removed_in: '2.22'
             version_added: '2.15'
             ini:
             - {key: salt, section: aes256_vault}
             - {key: vault_encrypt_salt, section: defaults}
-            env: 
+            env:
             - name: ANSIBLE_VAULT_AES256_SALT
             - name: ANSIBLE_VAULT_ENCRYPT_SALT
-        iterations:    
-            description: 
-                - Number of passes to do for deriving keys, the higher the number the more secure, but also the more it costs and the longer it takes.
+        iterations:
+            description:
+                - Number of passes to do for deriving keys, the higher the number the more secure.
             type: int
             default: 600000
             ini:
@@ -32,10 +38,16 @@ DOCUMENTATION = """
               section: aes256_vault
             env:
             - name: ANSIBLE_VAULT_AES256_ITERATIONS
-        key_length:    
+        key_length:
             description: Lentgh of derived key
             type: int
             default: 32
+    notes:
+    - The plugin is new in 2.19, but the code itself was added in 2.4 and was the hardcoded default.
+    - Increasing iterations or key_lenght also increases CPU usage and encryption/decryption times.
+    - Current defaults are considered safe at the time this plugin was published
+    - The previous 'hardcoded' vault used this plugin with the 'version 1' settings,
+      iterations set to 10000, but that is considered unsafe at the time of writing.
 """
 
 import os
@@ -62,23 +74,28 @@ from ansible.module_utils.basic import missing_required_lib
 
 
 from ansible.parsing.vault import VaultSecret
-from . import VaultMethodBase, VaultSecretError
+from . import VaultBase, VaultSecretError
 
 
-class VaultMethod(VaultMethodBase):
+class Vault(VaultBase):
     """Vault implementation using AES-CTR with an HMAC-SHA256 authentication code. Keys are derived using PBKDF2."""
 
-    _V1_DEFAULTS = {'iterations': 10_000, 'key_length': 32}
+    _V1_OPTIONS = {'iterations': 10_000, 'key_length': 32}
+
     def __init__(self):
+
         if CRYPT_IMPORT_ERROR is not None:
-            VaultMethodBase._import_error('cryptography', CRYPT_IMPORT_ERROR)
+            VaultBase._import_error('cryptography', CRYPT_IMPORT_ERROR)
+
+        super().__init__()
+
         self.CRYPTOGRAPHY_BACKEND = default_backend()
 
-    @VaultMethodBase.lru_cache()
+    @VaultBase.lru_cache()
     def _generate_keys_and_iv(self, secret: bytes, salt: bytes) -> tuple[bytes, bytes, bytes]:
 
         # AES is a 128-bit block cipher, so we used a 32 byte key and 16 byte IVs and counter nonces
-        key_length = self.get_options('key_lengh')
+        key_length = self.get_option('key_length')
         iv_length = algorithms.AES.block_size // 8
 
         kdf = PBKDF2HMAC(
@@ -98,7 +115,6 @@ class VaultMethod(VaultMethodBase):
         return key1, key2, iv
 
     def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
-        Display().warning("Encryption with the AES256 method should only be used for backwards compatibility with older versions of Ansible.")
 
         self.set_options(direct=options)
 
@@ -123,21 +139,35 @@ class VaultMethod(VaultMethodBase):
         # save params for decryption, except salt which goes in header
         options = self.get_options()
         del options['salt']
-        params = json.dump(options)
 
         # redundant double hexlify cannot be removed as it is backwards incompatible
-        return hexlify(b'\n'.join(map(hexlify, (salt, signature, ciphertext, params)))).decode()
+        if options == Vault._V1_OPTIONS:
+            Display().warning("Encryption with the AES256 with low iterations should only be used for backwards compatibility with older versions of Ansible.")
+            # if using 'backwards compat options' omit the extra params
+            ciphertext = hexlify(b'\n'.join(map(hexlify, (salt, signature, ciphertext))))
+        else:
+            params = json.dumps(options).encode()
+            ciphertext = hexlify(b'\n'.join(map(hexlify, (salt, signature, ciphertext, params))))
 
-    @classmethod
+        return ciphertext.decode()
+
     def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
 
-        salt, signature, ciphertext, params = map(unhexlify, unhexlify(vaulttext).split(b'\n', 3))
+        try:
+            salt, signature, ciphertext, params = map(unhexlify, unhexlify(vaulttext).split(b'\n', 3))
+        except ValueError:
+            # must be legacy vault, doesn't have params
+            salt, signature, ciphertext = map(unhexlify, unhexlify(vaulttext).split(b'\n', 2))
+            params = None
 
-        if params:
-            options = json.loads(params)
+        if params is None:
+            # old vaults did not save params, set iterations to compatible V1 options
+            options = Vault._V1_OPTIONS
         else:
-            # old vaults did not save params, set iterations to compatible defaults
-            options = VaultMethod._V1_DEFAULTS
+            options = json.loads(params.decode())
+
+
+        # options set from vault itself (or use defaults for legacy)
         self.set_options(direct=options)
 
         key1, key2, iv = self._generate_keys_and_iv(secret.bytes, salt)

@@ -36,6 +36,7 @@ class VaultMethod(VaultMethodBase):
     def __init__(self):
         if CRYPTOLIB_ERROR:
             VaultMethodBase._import_error('cryptography.fernet', CRYPTOLIB_ERROR)
+        super().__init__()
 
     @classmethod
     @VaultMethodBase.lru_cache()

@@ -40,6 +40,18 @@
           assert:
             that:
               - (ansible_facts.packages | length ) > 0
+
+        - name: Same again but this time forcing rpm first
+          package_facts:
+             manager: ['rpm', 'apt']
+          environment:
+            PATH: "${PATH}:{{tempdir['path']}}"
+
+        - name: check we got packages
+          assert:
+            that:
+              - (ansible_facts.packages | length ) > 0
+
       always:
         - package: name="python3-rpm" state=absent
         - file: path="{{tempdir['path']}}/rpm" state=absent

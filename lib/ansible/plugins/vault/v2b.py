@@ -11,15 +11,14 @@ import json
 import secrets
 import typing as t
 
-from cryptography.fernet import Fernet, InvalidToken
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    CRYPTOLIB_ERROR = None
+except Exception as e:
+    CRYPTOLIB_ERROR = e
 
-from .. import VaultSecret
+from ansible.parsing.vault import VaultSecret
 from . import VaultMethodBase, VaultSecretError
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
-class NoParams:
-    """No options accepted. Any options provided will result in an error."""
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
@@ -33,6 +32,10 @@ class Params:
 
 
 class VaultMethod(VaultMethodBase):
+
+    def __init__(self):
+        if CRYPTOLIB_ERROR:
+            VaultMethodBase._import_error('cryptography.fernet', CRYPTOLIB_ERROR)
 
     @classmethod
     @VaultMethodBase.lru_cache()
@@ -50,14 +53,13 @@ class VaultMethod(VaultMethodBase):
 
         return base64.urlsafe_b64encode(derived_key)
 
-    @classmethod
-    def encrypt(cls, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
+    def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
         NoParams(**options)  # no options accepted
         salt = base64.b64encode(secrets.token_bytes(64)).decode()
         params = Params(salt=salt)
 
-        data_encryption_key = cls._derive_key_encryption_key_from_secret_no_cache(secret.bytes, params)
+        data_encryption_key = VaultMethod._derive_key_encryption_key_from_secret_no_cache(secret.bytes, params)
         data_encryption_cipher = Fernet(data_encryption_key)
         encrypted_text = data_encryption_cipher.encrypt(plaintext)
         digest = base64.b64encode(hmac.digest(data_encryption_key, encrypted_text, hashlib.sha512))
@@ -70,12 +72,11 @@ class VaultMethod(VaultMethodBase):
 
         return base64.b64encode(json.dumps(payload).encode()).decode()
 
-    @classmethod
-    def decrypt(cls, vaulttext: str, secret: VaultSecret) -> bytes:
+    def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
         payload = json.loads(base64.b64decode(vaulttext.encode()).decode())
         params = Params(salt=payload['salt'])
 
-        data_encryption_key = cls._derive_key_encryption_key_from_secret(secret.bytes, params)
+        data_encryption_key = VaultMethod._derive_key_encryption_key_from_secret(secret.bytes, params)
         digest = base64.b64decode(payload['digest'].encode())
         verify = hmac.digest(data_encryption_key, payload['ciphertext'].encode(), hashlib.sha512)
         if not secrets.compare_digest(digest, verify):

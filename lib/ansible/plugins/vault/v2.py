@@ -9,9 +9,13 @@ import hashlib
 import json
 import typing as t
 
-from cryptography.fernet import Fernet, InvalidToken
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    CRYPTO_FERNET_ERROR = None
+except Exception as e:
+    CRYPTO_FERNET_ERROR = e
 
-from .. import VaultSecret
+from ansible.parsing.vault import VaultSecret
 from . import VaultMethodBase, VaultSecretError
 
 
@@ -32,6 +36,11 @@ class Params:
 
 
 class VaultMethod(VaultMethodBase):
+
+    def __init__(self):
+        if CRYPTO_FERNET_ERROR:
+            VaultMethodBase._import_error('cryptography.fernet', CRYPTO_FERNET_ERROR)
+
     @classmethod
     @VaultMethodBase.lru_cache()
     def _derive_key_encryption_key_from_secret(cls, secret: bytes, params: Params, /) -> bytes:

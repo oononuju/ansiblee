@@ -1174,22 +1174,30 @@ VAULT_ENCRYPT_SALT:
   ini:
   - {key: vault_encrypt_salt, section: defaults}
   version_added: '2.15'
-VAULT_METHOD:
-  name: Vault method to use for encryption
+VAULT_PLUGIN:
+  name: Vault plugin to use for encryption
   default: v2
-  choices:
-    'aes256': AES 256 with PBKDF2HMAC key derivation with double hexlify byte shield
-    'v2': Using cryptography's fernet API with dual keys, AES 128, CBC and sCrypt key derivation, with base64 byte shield
-    'v2b': Using cryptography's fernet API with dual keys, AES 128, CBC and sCrypt key derivation, with base64 byte shield
-    'kpv1': Using RSA key pairs in PEM format. You encrypt with the public key and Ansible uses the private key to decrypt at runtime.
+  #choices:
+  #  'aes256': AES 256 with PBKDF2HMAC key derivation with double hexlify byte shield
+  #  'v2': Using cryptography's fernet API with dual keys, AES 128, CBC and sCrypt key derivation, with base64 byte shield
+  #  'v2b': Using cryptography's fernet API with dual keys, AES 128, CBC and sCrypt key derivation, with base64 byte shield
+  #  'kpv1': Using RSA key pairs in PEM format. You encrypt with the public key and Ansible uses the private key to decrypt at runtime.
   description:
-    - Vault method to use for encryption.
-  env: [{name: ANSIBLE_VAULT_METHOD}]
+    - Vault plugin to use for encryption.
+  env: [{name: ANSIBLE_VAULT_PLUGIN}]
   cli:
-    - name: vault_method
+    - name: vault_plugin
   ini:
-  - {key: vault_method, section: defaults}
+  - {key: vault_plugin, section: defaults}
   version_added: '2.18'
+VAULT_PLUGIN_PATH:
+  name: Vault plugins path
+  default: '{{ ANSIBLE_HOME ~ "/plugins/vault:/usr/share/ansible/plugins/vault" }}'
+  description: Colon-separated paths in which Ansible will search for Vault Plugins.
+  env: [{name: ANSIBLE_VAULT_PLUGINS}]
+  ini:
+  - {key: vault_plugins, section: defaults}
+  type: pathspec
 DEFAULT_VAULT_ENCRYPT_IDENTITY:
   name: Vault id to use for encryption
   description: 'The vault_id to use for encrypting by default. If multiple vault_ids are provided, this specifies which to use for encryption. The ``--encrypt-vault-id`` CLI option overrides the configured value.'

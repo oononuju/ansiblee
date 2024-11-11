@@ -19,6 +19,7 @@ import typing as t
 from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible import constants as C
 from ansible.module_utils.common.text.converters import to_bytes, to_text, to_native
+from ansible.plugins.loader import vault_loader
 from ansible.utils.display import Display
 from ansible.utils.path import makedirs_safe, unfrackpath
 
@@ -202,8 +203,8 @@ def load_vault_method(method_name: str | None) -> type[VaultMethodBase]:
     except AnsibleOptionsError as e:
         raise AnsibleVaultError(f'Unsupported vault method {method_name!r}') from e
 
-    vault_module = importlib.import_module('.'.join((__name__, 'methods', method_name)))
-    return vault_module.VaultMethod
+    vault_plugin = vault_loader.get(method_name)
+    return vault_plugin
 
 
 def verify_secret_is_not_empty(secret, msg=None):

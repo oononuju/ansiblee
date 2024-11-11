@@ -220,7 +220,7 @@ notes:
    - When O(default_release) is used, an implicit priority of 990 is used. This is the same behavior as C(apt-get -t).
    - When an exact version is specified, an implicit priority of 1001 is used.
    - If the interpreter can't import C(python3-apt) the module will check for it in system-owned interpreters as well.
-     If the dependency can't be found, depending on the value of O(auto_install_module_deps) the module will attempt to install it
+     If the dependency can't be found, depending on the value of O(auto_install_module_deps) the module will attempt to install it.
      If the dependency is found or installed, the module will be respawned under the correct interpreter.
 """
 
@@ -1238,7 +1238,7 @@ def main():
             allow_downgrade=dict(type='bool', default=False, aliases=['allow-downgrade', 'allow_downgrades', 'allow-downgrades']),
             allow_change_held_packages=dict(type='bool', default=False),
             lock_timeout=dict(type='int', default=60),
-            auto_install_module_deps=dict(type="bool", default=True),
+            auto_install_module_deps=dict(type='bool', default=True),
         ),
         mutually_exclusive=[['deb', 'package', 'upgrade']],
         required_one_of=[['autoremove', 'deb', 'package', 'update_cache', 'upgrade']],

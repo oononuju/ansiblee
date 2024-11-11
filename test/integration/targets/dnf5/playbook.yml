@@ -1,10 +1,10 @@
 - hosts: localhost
-  pre_tasks:
-    - command: "dnf install -y 'dnf-command(copr)'"
-    - name: Test against dnf5 nightly build to detect any issues early
-      command: dnf copr enable -y rpmsoftwaremanagement/dnf-nightly
   tasks:
     - block:
+        - command: "dnf install -y 'dnf-command(copr)'"
+        - name: Test against dnf5 nightly build to detect any issues early
+          command: dnf copr enable -y rpmsoftwaremanagement/dnf-nightly
+
         - name: Test the auto_install_module_deps option
           dnf5:
             name: sos

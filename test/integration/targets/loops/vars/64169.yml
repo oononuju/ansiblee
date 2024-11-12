@@ -1,2 +1,3 @@
+# version_64169 set in vars/main.yml
 __foo:
   - "foo{{ version_64169 }}"

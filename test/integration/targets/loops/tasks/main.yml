@@ -376,35 +376,49 @@
     that:
       - loop_out['results'][1]['ansible_remote_tmp'] == '/tmp/test1'
 
-# https://github.com/ansible/ansible/issues/64169
-- include_vars: 64169.yml
-
-- set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
-  with_dict:
-    foo: __foo
-
-- debug:
-    var: foo
-
-- assert:
-    that:
-      - foo[0] != 'foo1.0'
-      - foo[0] == unsafe_value
+- name: Ensure we only flag unsafe with_ loops (due to lookups) https://github.com/ansible/ansible/issues/64169
+  tags: unsafe
   vars:
+    # version_64169 set in vars/main.yml
     unsafe_value: !unsafe 'foo{{ version_64169 }}'
+  block:
+  - name: include __foo with a templatable item
+    include_vars: 64169.yml
 
-- set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
-  loop: "{{ dicty_dict|dict2items }}"
-  vars:
-    dicty_dict:
+  - name: Create fact using with_dict (akak lookup('dict')), should be unsafe
+    set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
+    with_dict:
       foo: __foo
 
-- debug:
-    var: foo
+  - debug:
+      var: foo
+    when: ansible_verbosity >= 1
 
-- assert:
-    that:
-      - foo[0] == 'foo1.0'
+  - name: Ensure result is unsafe
+    assert:
+      that:
+        - foo[0] | type_debug == 'AnsibleUnsafeText'
+
+        - foo[0] != 'foo1.0'
+        - foo[0] == unsafe_value
+
+  - name: Create fact using using normal loop, should not be unsafe
+    set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
+    loop: "{{ dicty_dict|dict2items }}"
+    vars:
+      dicty_dict:
+        foo2: __foo
+
+  - debug:
+      var: foo2
+    when: ansible_verbosity >= 1
+
+    name: Ensure simple loop/no lookups does not mark Unsafe
+  - assert:
+      that:
+        - foo2[0] | type_debug != 'AnsibleUnsafeText'
+        - foo2[0] == 'foo1.0'
+        - foo2[0] != unsafe_value
 
 # https://github.com/ansible/ansible/issues/83619
 - command: "echo {{ item }}"

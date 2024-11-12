@@ -1,2 +1,2 @@
-bugfixes:
-  - Templating will now preserve AnsibleUnsafe when a variable is referenced via hostvars
+security_fixes:
+  - Templating will now preserve AnsibleUnsafe when a variable is referenced via hostvars CVE-2024-11079

@@ -359,7 +359,9 @@ class AnsibleContext(Context):
         a key or value which contains jinja2 syntax and would otherwise
         lose the AnsibleUnsafe value.
         """
-        if isinstance(val, Mapping):
+        if isinstance(val, AnsibleUndefined):
+            return False
+        elif isinstance(val, Mapping):
             for key in val.keys():
                 if self._is_unsafe(val[key]):
                     return True

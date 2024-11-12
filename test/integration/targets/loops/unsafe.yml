@@ -1,0 +1,44 @@
+- name: Ensure we only flag unsafe with_ loops (due to lookups) https://github.com/ansible/ansible/issues/64169
+  hosts: testhost
+  gather_facts: no
+  vars:
+    version_64169: '1.0'
+    unsafe_value: !unsafe 'foo{{ version_64169 }}'
+  tasks:
+  - name: include __foo with a templatable item
+    include_vars: 64169.yml
+
+  - name: Create fact using using normal loop, should not be unsafe
+    set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
+    loop: "{{ dicty_dict|dict2items }}"
+    vars:
+      dicty_dict:
+        foo: __foo
+
+  - debug:
+      var: foo
+    when: ansible_verbosity >= 1
+
+    name: Ensure simple loop/no lookups does not mark Unsafe
+  - assert:
+      that:
+        - foo[0] | type_debug != 'AnsibleUnsafeText'
+        - foo[0] == 'foo1.0'
+        - foo[0] != unsafe_value
+
+  - name: Create fact using with_dict (akak lookup('dict')), should be unsafe
+    set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
+    with_dict:
+      foo: __foo
+
+  - debug:
+      var: foo
+    when: ansible_verbosity >= 1
+
+  - name: Ensure result is unsafe
+    assert:
+      that:
+        - foo[0] | type_debug == 'AnsibleUnsafeText'
+
+        - foo[0] != 'foo1.0'
+        - foo[0] == unsafe_value

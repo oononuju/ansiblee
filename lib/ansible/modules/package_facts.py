@@ -484,7 +484,7 @@ def main():
 
     # get supported pkg managers
     PKG_MANAGERS = get_all_pkg_managers()
-    PKG_MANAGER_NAMES = [x.lower() for x in PKG_MANAGERS.keys()]
+    PKG_MANAGER_NAMES = sorted([x.lower() for x in PKG_MANAGERS.keys()])
 
     # start work
     global module
@@ -521,6 +521,7 @@ def main():
             continue
         seen.add(pkgmgr)
         try:
+<<<<<<< HEAD
             try:
                 # manager throws exception on init (calls self.test) if not usable.
                 manager = PKG_MANAGERS[pkgmgr]()
@@ -532,6 +533,25 @@ def main():
                 if pkgmgr in module.params['manager']:
                     module.warn('Requested package manager %s was not usable by this module: %s' % (pkgmgr, to_text(e)))
                 continue
+=======
+            packages_found = {}
+            if manager.is_available(handle_exceptions=False):
+                try:
+                    packages_found = manager.get_packages()
+                except Exception as e:
+                    module.warn('Failed to retrieve packages with %s: %s' % (pkgmgr, to_text(e)))
+
+            # only consider 'found' if it results in something
+            if packages_found:
+                found += 1
+                for k in packages_found.keys():
+                    if k in packages:
+                        packages[k].extend(packages_found[k])
+                    else:
+                        packages[k] = packages_found[k]
+            else:
+                module.warn('Found "%s" but no associated packages' % (pkgmgr))
+>>>>>>> e404bc17f7 (package_facts fix empty packages on foreign mgr (#83855))
 
         except Exception as e:
             if pkgmgr in module.params['manager']:

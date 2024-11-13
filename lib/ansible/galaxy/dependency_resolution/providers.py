@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import functools
 import typing as t
 
@@ -47,7 +49,7 @@ class CollectionDependencyProvider(AbstractProvider):
     """Delegate providing a requirement interface for the resolver."""
 
     def __init__(
-            self,  # type: CollectionDependencyProvider
+            self,
             apis,  # type: MultiGalaxyAPIProxy
             concrete_artifacts_manager=None,  # type: ConcreteArtifactsManager
             preferred_candidates=None,  # type: t.Iterable[Candidate]
@@ -109,8 +111,8 @@ class CollectionDependencyProvider(AbstractProvider):
         resolutions: t.Mapping[str, Candidate],
         candidates: t.Mapping[str, t.Iterator[Candidate]],
         information: t.Iterator[t.NamedTuple],
-        backtrack_causes: t.Sequence
-    ) -> t.Union[float, int]:
+        backtrack_causes: Sequence[t.NamedTuple],
+    ) -> float | int:
         """Return sort key function return value for given requirement.
 
         This result should be based on preference that is defined as
@@ -153,20 +155,19 @@ class CollectionDependencyProvider(AbstractProvider):
         the value is, the more preferred this requirement is (i.e. the
         sorting function is called with ``reverse=False``).
         """
-        return self._get_preference(list(candidates[identifier]))
+        for candidate in candidates[identifier]:
+            if candidate in self._preferred_candidates:
+                # NOTE: Prefer pre-installed candidates over newer versions
+                # NOTE: available from Galaxy or other sources.
+                return float('-inf')
+        return len(list(candidates[identifier]))
 
-    def _get_preference(self, candidates):
-        # type: (list[Candidate]) -> t.Union[float, int]
-        if any(
-                candidate in self._preferred_candidates
-                for candidate in candidates
-        ):
-            # NOTE: Prefer pre-installed candidates over newer versions
-            # NOTE: available from Galaxy or other sources.
-            return float('-inf')
-        return len(candidates)
-
-    def find_matches(self, identifier: str, requirements: t.Mapping[str, Candidate], incompatibilities: t.Mapping[str, Candidate]) -> list[Candidate]:
+    def find_matches(
+        self,
+        identifier: str,
+        requirements: t.Mapping[str, t.Iterator[Candidate]],
+        incompatibilities: t.Mapping[str, t.Iterator[Candidate]]
+    ) -> list[Candidate]:
         r"""Find all possible candidates satisfying given requirements.
 
         This tries to get candidates based on the requirements' types.
@@ -194,8 +195,7 @@ class CollectionDependencyProvider(AbstractProvider):
             if not any(match.ver == incompat.ver for incompat in incompatibilities[identifier])
         ]
 
-    def _find_matches(self, requirements):
-        # type: (list[Requirement]) -> list[Candidate]
+    def _find_matches(self, requirements: list[Candidate]) -> list[Candidate]:
         # FIXME: The first requirement may be a Git repo followed by
         # FIXME: its cloned tmp dir. Using only the first one creates
         # FIXME: loops that prevent any further dependency exploration.
@@ -364,8 +364,7 @@ class CollectionDependencyProvider(AbstractProvider):
 
         return list(preinstalled_candidates) + latest_matches
 
-    def is_satisfied_by(self, requirement, candidate):
-        # type: (Requirement, Candidate) -> bool
+    def is_satisfied_by(self, requirement: Candidate, candidate: Candidate) -> bool:
         r"""Whether the given requirement is satisfiable by a candidate.
 
         :param requirement: A requirement that produced the `candidate`.

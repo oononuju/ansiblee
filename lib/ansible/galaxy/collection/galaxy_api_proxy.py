@@ -12,9 +12,7 @@ if t.TYPE_CHECKING:
     from ansible.galaxy.collection.concrete_artifact_manager import (
         ConcreteArtifactsManager,
     )
-    from ansible.galaxy.dependency_resolution.dataclasses import (
-        Candidate, Requirement,
-    )
+    from ansible.galaxy.dependency_resolution.dataclasses import Candidate
 
 from ansible.galaxy.api import GalaxyAPI, GalaxyError
 from ansible.module_utils.common.text.converters import to_text
@@ -41,7 +39,7 @@ class MultiGalaxyAPIProxy:
         if self.is_offline_mode_requested:
             raise NotImplementedError("The calling code is not supposed to be invoked in 'offline' mode.")
 
-    def _get_collection_versions(self, requirement: Requirement) -> t.Iterator[tuple[GalaxyAPI, str]]:
+    def _get_collection_versions(self, requirement: Candidate) -> t.Iterator[tuple[GalaxyAPI, str]]:
         """Helper for get_collection_versions.
 
         Yield api, version pairs for all APIs,
@@ -84,7 +82,7 @@ class MultiGalaxyAPIProxy:
         if not found_api and last_error is not None:
             raise last_error
 
-    def get_collection_versions(self, requirement: Requirement) -> t.Iterable[tuple[str, GalaxyAPI]]:
+    def get_collection_versions(self, requirement: Candidate) -> t.Iterable[tuple[str, GalaxyAPI]]:
         """Get a set of unique versions for FQCN on Galaxy servers."""
         if requirement.is_concrete_artifact:
             return {

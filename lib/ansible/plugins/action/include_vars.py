@@ -13,6 +13,7 @@ from ansible.module_utils.six import string_types
 from ansible.module_utils.common.text.converters import to_native, to_text
 from ansible.plugins.action import ActionBase
 from ansible.utils.vars import combine_vars
+from ansible.parsing.yaml.objects import AnsibleMapping
 
 
 class ActionModule(ActionBase):
@@ -144,6 +145,8 @@ class ActionModule(ActionBase):
             merge_hashes = self.hash_behaviour == 'merge'
             for key, value in results.items():
                 old_value = task_vars.get(key, None)
+                if not isinstance(old_value, AnsibleMapping) or not isinstance(value, AnsibleMapping):
+                    continue
                 results[key] = combine_vars(old_value, value, merge=merge_hashes)
 
         result['ansible_included_var_files'] = self.included_files

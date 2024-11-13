@@ -68,3 +68,21 @@
 
   ### test wait_for_connection plugin
   - wait_for_connection:
+
+
+  ### test check permission of ~/.ssh
+
+  - name: check if ~/.ssh is exists with 0700 permission
+    block:
+    - name: gather information about ~/.ssh
+      stat:
+        path: "~/.ssh"
+      register: perms
+
+    - name: check if the ~/.ssh is 0700 permission
+      assert:
+        that:
+          - perms.stat.mode == '0700'
+      when: perms.stat.exists | bool
+
+    when: ansible_connection == 'paramiko_ssh' or ansible_connection == 'paramiko'

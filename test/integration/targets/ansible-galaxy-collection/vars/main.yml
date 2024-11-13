@@ -8,7 +8,7 @@ offline_server: https://test-hub.demolab.local/api/galaxy/content/api/
 # NOTE: If ansible-galaxy incorporates new resolvelib features, this matrix should be updated to verify the features work on all supported versions.
 supported_resolvelib_versions:
   - "0.8.0"
-  - "<2.0.0"
+  - "< 2.0.0"
 
 unsupported_resolvelib_versions:
   - "0.2.0"  # Fails on import

@@ -3,6 +3,49 @@
 
 from __future__ import annotations
 
+DOCUMENTATION = """
+    name: v2b
+    version_added: "2.14"
+    short_description: AES256 and Scrypt
+    description:
+        - AES256 with Scrypt key derivation and base64 byte shield/armor
+    requirements:
+        - cryptography.fernet (python)
+    options:
+        block_size:
+            description: Block Size (r) used while deriving key
+            default: 8
+            type: int
+            ini:
+            - {key: block_size, section: v2b_vault}
+            env:
+            - name: ANSIBLE_VAULT_V2B_BLOCK_SIZE
+        iterations:
+            description: Number of iterations (n) for key derivation
+            type: int
+            default: 16384
+            ini:
+            - {key: iterations, section: v2b_vault}
+            env:
+            - name: ANSIBLE_VAULT_V2B_ITERATIONS
+        key_length:
+            description: Length of derived key in bytes
+            type: int
+            default: 32
+            ini:
+            - {key: key_length, section: v2b_vault}
+            env:
+            - name: ANSIBLE_VAULT_V2B_KEY_LENGTH
+        parallelization:
+            description: Number of parallel threads (p) to use to derive key
+            default: 1
+            type: int
+            ini:
+            - {key: parallelization, section: v2b_vault}
+            env:
+            - name: ANSIBLE_VAULT_V2B_KEY_PARALLELIZATION
+"""
+
 import base64
 import dataclasses
 import hashlib
@@ -18,49 +61,38 @@ except Exception as e:
     CRYPTOLIB_ERROR = e
 
 from ansible.parsing.vault import VaultSecret
-from . import VaultMethodBase, VaultSecretError
+from . import VaultBase, VaultSecretError
 
 
-@dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
-class Params:
-    """Default options for this VaultMethod."""
-    salt: str
-    length: int = 32
-    n: int = 2**14  # iterations (cpu + mem)
-    r: int = 8  # block size (mem)
-    p: int = 1  # paralelism (cpu + mem)
-
-
-class VaultMethod(VaultMethodBase):
+class Vault(VaultBase):
 
     def __init__(self):
         if CRYPTOLIB_ERROR:
-            VaultMethodBase._import_error('cryptography.fernet', CRYPTOLIB_ERROR)
+            VaultBase._import_error('cryptography.fernet', CRYPTOLIB_ERROR)
         super().__init__()
 
-    @classmethod
-    @VaultMethodBase.lru_cache()
-    def _derive_key_encryption_key_from_secret(cls, secret: bytes, params: Params, /) -> bytes:
-        return cls._derive_key_encryption_key_from_secret_no_cache(secret, params)
+    @VaultBase.lru_cache()
+    def _derive_key_encryption_key_from_secret(self, secret: bytes, salt: bytes, /) -> bytes:
+        return self._derive_key_encryption_key_from_secret_no_cache(secret, salt)
 
-    @classmethod
-    def _derive_key_encryption_key_from_secret_no_cache(cls, secret: bytes, params: Params, /) -> bytes:
+    def _derive_key_encryption_key_from_secret_no_cache(self, secret: bytes, salt: bytes, /) -> bytes:
         if len(secret) < 10:
             # TODO: require complexity?
             raise VaultSecretError(f"The vault secret must be at least 10 bytes (received {len(secret)}).")
 
-        salt = base64.b64decode(params.salt.encode())
-        derived_key = hashlib.scrypt(secret, salt=salt, n=params.n, r=params.r, p=params.p, dklen=params.length)
+        salt = base64.b64decode(salt.encode())
+        derived_key = hashlib.scrypt(secret, salt=salt, n=self.get_option('iterations'), r=self.get_option('block_size'), p=self.get_option('parallelization'), dklen=self.get_option('key_length'))
 
         return base64.urlsafe_b64encode(derived_key)
 
     def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
-        NoParams(**options)  # no options accepted
+        print(options)
+        self.set_options(direct=options)
+        print('2', self.get_options())
         salt = base64.b64encode(secrets.token_bytes(64)).decode()
-        params = Params(salt=salt)
 
-        data_encryption_key = VaultMethod._derive_key_encryption_key_from_secret_no_cache(secret.bytes, params)
+        data_encryption_key = self._derive_key_encryption_key_from_secret_no_cache(secret.bytes, salt)
         data_encryption_cipher = Fernet(data_encryption_key)
         encrypted_text = data_encryption_cipher.encrypt(plaintext)
         digest = base64.b64encode(hmac.digest(data_encryption_key, encrypted_text, hashlib.sha512))
@@ -69,15 +101,18 @@ class VaultMethod(VaultMethodBase):
             salt=salt,
             digest=digest.decode(),
             ciphertext=encrypted_text.decode(),
+            options=self.get_options(),
         )
 
         return base64.b64encode(json.dumps(payload).encode()).decode()
 
     def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
-        payload = json.loads(base64.b64decode(vaulttext.encode()).decode())
-        params = Params(salt=payload['salt'])
 
-        data_encryption_key = VaultMethod._derive_key_encryption_key_from_secret(secret.bytes, params)
+        payload = json.loads(base64.b64decode(vaulttext.encode()).decode())
+        salt = payload['salt']
+        self.set_options(direct=payload['options'])
+
+        data_encryption_key = self._derive_key_encryption_key_from_secret(secret.bytes, salt)
         digest = base64.b64decode(payload['digest'].encode())
         verify = hmac.digest(data_encryption_key, payload['ciphertext'].encode(), hashlib.sha512)
         if not secrets.compare_digest(digest, verify):

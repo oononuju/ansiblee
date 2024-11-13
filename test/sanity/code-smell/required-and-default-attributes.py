@@ -1,30 +1,24 @@
 from __future__ import annotations
 
-import sys
 import ast
+import pathlib
+import sys
 
 
 class CallVisitor(ast.NodeVisitor):
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
 
-    def visit_Call(self, node):
-        if getattr(node.func, "id", "").endswith("FieldAttribute"):
-            count = 0
-            for kw in node.keywords:
-                if kw.arg in ("default", "required"):
-                    count += 1
-            if count > 1:
-                print(
-                    f"{self.path}:{node.lineno}:{node.col_offset}: use only one of `default` or `required` with `{node.func.id}`"
-                )
+    def visit_Call(self, node: ast.Call) -> None:
+        if isinstance(node.func, ast.Name) and node.func.id.endswith("FieldAttribute"):
+            if len([kw for kw in node.keywords if kw.arg in ("default", "required")]) > 1:
+                print(f"{self.path}:{node.lineno}:{node.col_offset}: use only one of `default` or `required` with `{node.func.id}`")
 
 
-def main():
+def main() -> None:
     for path in sys.argv[1:] or sys.stdin.read().splitlines():
-        with open(path, "r") as path_fd:
-            tree = ast.parse(path_fd.read())
-            CallVisitor(path).visit(tree)
+        tree = ast.parse(pathlib.Path(path).read_text(), path)
+        CallVisitor(path).visit(tree)
 
 
 if __name__ == "__main__":

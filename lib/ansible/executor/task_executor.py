@@ -134,6 +134,7 @@ class TaskExecutor:
                     deprecations = set()
                     skipped = True
                     changed = failed = unreachable = False
+                    ignore_errors = ignore_unreachable = True
                     for item in res['results']:
                         skipped &= item.get('skipped', False)
                         changed |= item.get('changed', False)
@@ -142,9 +143,9 @@ class TaskExecutor:
 
                         if failed_item:
                             # ignore errors globally only when all failed items ignore errors
-                            self._task.ignore_errors &= item.pop('_ansible_ignore_errors')
+                            ignore_errors &= item.pop('_ansible_ignore_errors')
                         if unreachable_item:
-                            self._task.ignore_unreachable &= item.pop('_ansible_ignore_unreachable')
+                            ignore_unreachable &= item.pop('_ansible_ignore_unreachable')
 
                         warnings.update(item.pop('warnings', []))
                         deprecations.update(item.pop('deprecations', []))
@@ -158,6 +159,9 @@ class TaskExecutor:
                         res['msg'] = 'All items skipped'
                     else:
                         res['msg'] = 'One or more items failed' if failed else 'All items completed'
+
+                    self._task.ignore_errors = ignore_errors
+                    self._task.ignore_unreachable = ignore_unreachable
 
                     res.update(
                         skipped=skipped,

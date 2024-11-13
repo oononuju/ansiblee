@@ -40,7 +40,7 @@
         that:
           - incompatible.failed
           - not incompatible.msg.startswith("The command action failed to execute in the expected time frame")
-          - expected in incompatible.msg
+          - expected in incompatible.stderr
       vars:
         expected: |
           Failed to resolve the requested dependencies map. Could not satisfy the following requirements:

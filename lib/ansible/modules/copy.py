@@ -333,23 +333,24 @@ def adjust_recursive_directory_permissions(pre_existing_dir, new_directory_list,
     return changed
 
 
+def chown_path(module, path, owner, group):
+    """Update the owner/group if specified and different from the current owner/group."""
+    changed = module.set_owner_if_different(path, owner, False)
+    return module.set_group_if_different(path, group, changed)
+
+
 def chown_recursive(path, module):
     changed = False
     owner = module.params['owner']
     group = module.params['group']
 
-    # TODO: Consolidate with the other methods calling set_*_if_different methods.
-    # Recursing the path for every attribute like this, is inefficient.
-    file_args = {'owner': owner, 'group': group, 'secontext': None, 'mode': None, 'attributes': None}
+    # TODO: Consolidate with the other methods calling set_*_if_different method, this is inefficient.
     for dirpath, dirnames, filenames in os.walk(path):
-        file_args['path'] = dirpath
-        changed = module.set_fs_attributes_if_different(file_args, changed)
+        changed |= chown_path(module, dirpath, owner, group)
         for subdir in [os.path.join(dirpath, d) for d in dirnames]:
-            file_args['path'] = subdir
-            changed = module.set_fs_attributes_if_different(file_args, changed)
+            changed |= chown_path(module, subdir, owner, group)
         for filepath in [os.path.join(dirpath, f) for f in filenames]:
-            file_args['path'] = filepath
-            changed = module.set_fs_attributes_if_different(file_args, changed)
+            changed |= chown_path(module, filepath, owner, group)
 
     return changed
 

@@ -286,10 +286,8 @@ state:
 
 import errno
 import filecmp
-import grp
 import os
 import os.path
-import pwd
 import shutil
 import stat
 import tempfile

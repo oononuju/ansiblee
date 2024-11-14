@@ -3,6 +3,18 @@
 
 from __future__ import annotations
 
+DOCUMENTATION = """
+    name: kpv1
+    version_added: "2.4"
+    short_description: Public/Private RSA ssh keys
+    description:
+        - Use public/private RSA ssh keys to encrypt/decrypt and base64 byte shield/armor
+        - The vault secret must be the public key for encryption and the private for decryption
+        - The private key cannot be passphrase protected when decrypting
+    requirements:
+        - cryptography (python)
+"""
+
 import base64
 import dataclasses
 import json
@@ -12,8 +24,8 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_pem_private_key, load_ssh_public_key, load_ssh_private_key
 
-from .. import VaultSecret
-from . import VaultMethodBase, VaultSecretError
+from ansible.parsing.vault import VaultSecret
+from . import VaultBase, VaultSecretError
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
@@ -21,7 +33,7 @@ class NoParams:
     """No options accepted. Any options provided will result in an error."""
 
 
-class VaultMethod(VaultMethodBase):
+class Vault(VaultBase):
     """ Both public and private keys must RSA in PEM or OpenSSH format and not protected by passhprase
 
     # generate RSA, private one in PEM format, use empty passphrase on prompt,
@@ -40,8 +52,7 @@ class VaultMethod(VaultMethodBase):
 
     padding = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
-    @classmethod
-    def encrypt(cls, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
+    def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
         NoParams(**options)
 
@@ -55,14 +66,13 @@ class VaultMethod(VaultMethodBase):
                 raise ValueError(f"Could not load vault secret public key, as ssh: {e!r}.\n Nor as pem: {e2!r}")
 
         if hasattr(public_key, 'encrypt'):
-            encrypted_text = public_key.encrypt(plaintext, cls.padding)
+            encrypted_text = public_key.encrypt(plaintext, Vault.padding)
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to encrypt")
 
         return base64.b64encode(encrypted_text)
 
-    @classmethod
-    def decrypt(cls, vaulttext: str, secret: VaultSecret) -> bytes:
+    def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
 
         b_key = secret.bytes
         try:
@@ -78,4 +88,4 @@ class VaultMethod(VaultMethodBase):
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to decrypt")
 
-        return private_key.decrypt(cipher_text, cls.padding)
+        return private_key.decrypt(cipher_text, Vault.padding)

@@ -204,7 +204,11 @@ def load_vault_method(method_name: str | None) -> type[VaultBase]:
     except AnsibleOptionsError as e:
         raise AnsibleVaultError(f'Unsupported vault method {method_name!r}') from e
 
-    return vault_loader.get(method_name)
+    plugin = vault_loader.get(method_name)
+    if not plugin:
+        raise AnsibleError(f"Unable to load vault plugin named {method_name}")
+
+    return plugin
 
 
 def verify_secret_is_not_empty(secret, msg=None):

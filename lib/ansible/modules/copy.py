@@ -340,62 +340,18 @@ def chown_recursive(path, module):
     owner = module.params['owner']
     group = module.params['group']
 
-    if owner is not None:
-        if not module.check_mode:
-            for dirpath, dirnames, filenames in os.walk(path):
-                owner_changed = module.set_owner_if_different(dirpath, owner, False)
-                if owner_changed is True:
-                    changed = owner_changed
-                for dir in [os.path.join(dirpath, d) for d in dirnames]:
-                    owner_changed = module.set_owner_if_different(dir, owner, False)
-                    if owner_changed is True:
-                        changed = owner_changed
-                for file in [os.path.join(dirpath, f) for f in filenames]:
-                    owner_changed = module.set_owner_if_different(file, owner, False)
-                    if owner_changed is True:
-                        changed = owner_changed
-        else:
-            uid = pwd.getpwnam(owner).pw_uid
-            for dirpath, dirnames, filenames in os.walk(path):
-                owner_changed = (os.stat(dirpath).st_uid != uid)
-                if owner_changed is True:
-                    changed = owner_changed
-                for dir in [os.path.join(dirpath, d) for d in dirnames]:
-                    owner_changed = (os.stat(dir).st_uid != uid)
-                    if owner_changed is True:
-                        changed = owner_changed
-                for file in [os.path.join(dirpath, f) for f in filenames]:
-                    owner_changed = (os.stat(file).st_uid != uid)
-                    if owner_changed is True:
-                        changed = owner_changed
-    if group is not None:
-        if not module.check_mode:
-            for dirpath, dirnames, filenames in os.walk(path):
-                group_changed = module.set_group_if_different(dirpath, group, False)
-                if group_changed is True:
-                    changed = group_changed
-                for dir in [os.path.join(dirpath, d) for d in dirnames]:
-                    group_changed = module.set_group_if_different(dir, group, False)
-                    if group_changed is True:
-                        changed = group_changed
-                for file in [os.path.join(dirpath, f) for f in filenames]:
-                    group_changed = module.set_group_if_different(file, group, False)
-                    if group_changed is True:
-                        changed = group_changed
-        else:
-            gid = grp.getgrnam(group).gr_gid
-            for dirpath, dirnames, filenames in os.walk(path):
-                group_changed = (os.stat(dirpath).st_gid != gid)
-                if group_changed is True:
-                    changed = group_changed
-                for dir in [os.path.join(dirpath, d) for d in dirnames]:
-                    group_changed = (os.stat(dir).st_gid != gid)
-                    if group_changed is True:
-                        changed = group_changed
-                for file in [os.path.join(dirpath, f) for f in filenames]:
-                    group_changed = (os.stat(file).st_gid != gid)
-                    if group_changed is True:
-                        changed = group_changed
+    # TODO: Consolidate with the other methods calling set_*_if_different methods.
+    # Recursing the path for every attribute like this, is inefficient.
+    file_args = {'owner': owner, 'group': group, 'secontext': None, 'mode': None, 'attributes': None}
+    for dirpath, dirnames, filenames in os.walk(path):
+        file_args['path'] = dirpath
+        changed = module.set_fs_attributes_if_different(file_args, changed)
+        for subdir in [os.path.join(dirpath, d) for d in dirnames]:
+            file_args['path'] = subdir
+            changed = module.set_fs_attributes_if_different(file_args, changed)
+        for filepath in [os.path.join(dirpath, f) for f in filenames]:
+            file_args['path'] = filepath
+            changed = module.set_fs_attributes_if_different(file_args, changed)
 
     return changed
 
@@ -423,10 +379,8 @@ def copy_diff_files(src, dest, module):
                 shutil.copyfile(b_src_item_path, b_dest_item_path)
                 shutil.copymode(b_src_item_path, b_dest_item_path)
 
-            if owner is not None:
-                module.set_owner_if_different(b_dest_item_path, owner, False)
-            if group is not None:
-                module.set_group_if_different(b_dest_item_path, group, False)
+            module.set_owner_if_different(b_dest_item_path, owner, False)
+            module.set_group_if_different(b_dest_item_path, group, False)
             changed = True
     return changed
 
@@ -458,10 +412,8 @@ def copy_left_only(src, dest, module):
 
             if os.path.islink(b_src_item_path) and os.path.isfile(b_src_item_path) and local_follow is True:
                 shutil.copyfile(b_src_item_path, b_dest_item_path)
-                if owner is not None:
-                    module.set_owner_if_different(b_dest_item_path, owner, False)
-                if group is not None:
-                    module.set_group_if_different(b_dest_item_path, group, False)
+                module.set_owner_if_different(b_dest_item_path, owner, False)
+                module.set_group_if_different(b_dest_item_path, group, False)
 
             if os.path.islink(b_src_item_path) and os.path.isfile(b_src_item_path) and local_follow is False:
                 linkto = os.readlink(b_src_item_path)
@@ -471,10 +423,8 @@ def copy_left_only(src, dest, module):
                 shutil.copyfile(b_src_item_path, b_dest_item_path)
                 shutil.copymode(b_src_item_path, b_dest_item_path)
 
-                if owner is not None:
-                    module.set_owner_if_different(b_dest_item_path, owner, False)
-                if group is not None:
-                    module.set_group_if_different(b_dest_item_path, group, False)
+                module.set_owner_if_different(b_dest_item_path, owner, False)
+                module.set_group_if_different(b_dest_item_path, group, False)
 
             if not os.path.islink(b_src_item_path) and os.path.isdir(b_src_item_path):
                 shutil.copytree(b_src_item_path, b_dest_item_path, symlinks=not local_follow)
@@ -652,12 +602,9 @@ def main():
                 if validate:
                     # if we have a mode, make sure we set it on the temporary
                     # file source as some validations may require it
-                    if mode is not None:
-                        module.set_mode_if_different(src, mode, False)
-                    if owner is not None:
-                        module.set_owner_if_different(src, owner, False)
-                    if group is not None:
-                        module.set_group_if_different(src, group, False)
+                    module.set_mode_if_different(src, mode, False)
+                    module.set_owner_if_different(src, owner, False)
+                    module.set_group_if_different(src, group, False)
                     if "%s" not in validate:
                         module.fail_json(msg="validate must contain %%s: %s" % (validate))
                     (rc, out, err) = module.run_command(validate % src)

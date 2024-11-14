@@ -380,6 +380,7 @@
   tags: unsafe
   vars:
     # version_64169 set in vars/main.yml
+    version_64169: '1.0'
     unsafe_value: !unsafe 'foo{{ version_64169 }}'
   block:
   - name: include __foo with a templatable item

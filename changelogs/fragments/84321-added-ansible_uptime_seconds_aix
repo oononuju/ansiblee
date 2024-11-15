@@ -1,0 +1,2 @@
+minor_changes:
+  - ansible_uptime_second - added ansible_uptime_seconds fact support for AIX.

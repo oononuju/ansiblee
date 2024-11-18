@@ -48,7 +48,7 @@ from ansible.module_utils.six import string_types
 from ansible.module_utils.common.text.converters import to_native, to_text, to_bytes
 from ansible.module_utils.common.collections import is_sequence
 from ansible.plugins.loader import filter_loader, lookup_loader, test_loader
-from ansible.template.native_helpers import AnsibleUnsafeContext, ansible_native_concat, ansible_eval_concat, ansible_concat
+from ansible.template.native_helpers import AnsibleUndefined, ansible_native_concat, ansible_eval_concat, ansible_concat
 from ansible.template.template import AnsibleJ2Template
 from ansible.template.vars import AnsibleJ2Vars
 from ansible.utils.display import Display
@@ -312,35 +312,6 @@ def _wrap_native_text(func):
     return functools.update_wrapper(wrapper, func)
 
 
-class AnsibleUndefined(StrictUndefined):
-    """
-    A custom Undefined class, which returns further Undefined objects on access,
-    rather than throwing an exception.
-    """
-    def __getattr__(self, name):
-        if name == '__UNSAFE__':
-            # AnsibleUndefined should never be assumed to be unsafe
-            # This prevents ``hasattr(val, '__UNSAFE__')`` from evaluating to ``True``
-            raise AttributeError(name)
-        # Return original Undefined object to preserve the first failure context
-        return self
-
-    def __getitem__(self, key):
-        # Return original Undefined object to preserve the first failure context
-        return self
-
-    def __repr__(self):
-        return 'AnsibleUndefined(hint={0!r}, obj={1!r}, name={2!r})'.format(
-            self._undefined_hint,
-            self._undefined_obj,
-            self._undefined_name
-        )
-
-    def __contains__(self, item):
-        # Return original Undefined object to preserve the first failure context
-        return self
-
-
 class AnsibleContext(Context):
     """
     A custom context, which intercepts resolve_or_missing() calls and sets a flag
@@ -348,31 +319,37 @@ class AnsibleContext(Context):
     flag is checked post-templating, and (when set) will result in the
     final templated result being wrapped in AnsibleUnsafe.
     """
-    # def __init__(self, *args, **kwargs):
-    #     super(AnsibleContext, self).__init__(*args, **kwargs)
-    #     self.unsafe = False
+    def __init__(self, *args, **kwargs):
+        super(AnsibleContext, self).__init__(*args, **kwargs)
+        self.unsafe = False
 
-    # def _is_unsafe(self, val):
-    #     """
-    #     Our helper function, which will also recursively check dict and
-    #     list entries due to the fact that they may be repr'd and contain
-    #     a key or value which contains jinja2 syntax and would otherwise
-    #     lose the AnsibleUnsafe value.
-    #     """
-    #     if isinstance(val, (AnsibleUndefined, Mapping)) or is_sequence(val):
-    #         return False
-    #     elif getattr(val, '__UNSAFE__', False) is True:
-    #         return True
-    #     return False
+    def _is_unsafe(self, val):
+        """
+        Our helper function, which will also recursively check dict and
+        list entries due to the fact that they may be repr'd and contain
+        a key or value which contains jinja2 syntax and would otherwise
+        lose the AnsibleUnsafe value.
+        """
+        if isinstance(val, dict):
+            for key in val.keys():
+                if self._is_unsafe(val[key]):
+                    return True
+        elif isinstance(val, list):
+            for item in val:
+                if self._is_unsafe(item):
+                    return True
+        elif getattr(val, '__UNSAFE__', False) is True:
+            return True
+        return False
 
-    # def _update_unsafe(self, val):
-    #     if val is not None and not self.unsafe and self._is_unsafe(val):
-    #         self.unsafe = True
+    def _update_unsafe(self, val):
+        if val is not None and not self.unsafe and self._is_unsafe(val):
+            self.unsafe = True
 
-    # def resolve_or_missing(self, key):
-    #     val = super(AnsibleContext, self).resolve_or_missing(key)
-    #     self._update_unsafe(val)
-    #     return val
+    def resolve_or_missing(self, key):
+        val = super(AnsibleContext, self).resolve_or_missing(key)
+        self._update_unsafe(val)
+        return val
 
     def get_all(self):
         """Return the complete context as a dict including the exported
@@ -972,11 +949,10 @@ class Templar:
             self.cur_context = t.new_context(jvars, shared=True)
             rf = t.root_render_func(self.cur_context)
 
-            unsafe_ctx = AnsibleUnsafeContext()
             try:
-
-                res = myenv.concat(rf, context=unsafe_ctx)
-                if unsafe_ctx.unsafe:
+                res = myenv.concat(rf)
+                unsafe = getattr(self.cur_context, 'unsafe', False)
+                if unsafe:
                     res = wrap_var(res)
             except TypeError as te:
                 if 'AnsibleUndefined' in to_native(te):
@@ -1003,7 +979,7 @@ class Templar:
                 res_newlines = _count_newlines_from_end(res)
                 if data_newlines > res_newlines:
                     res += myenv.newline_sequence * (data_newlines - res_newlines)
-                    if unsafe_ctx.unsafe:
+                    if unsafe:
                         res = wrap_var(res)
             return res
         except UndefinedError as e:

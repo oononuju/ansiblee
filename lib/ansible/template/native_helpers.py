@@ -13,7 +13,10 @@ from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.six import string_types
 from ansible.parsing.yaml.objects import AnsibleVaultEncryptedUnicode
 from ansible.utils.native_jinja import NativeJinjaText
+from ansible.utils.unsafe_proxy import wrap_var
 import ansible.module_utils.compat.typing as t
+
+from jinja2.runtime import StrictUndefined
 
 
 _JSON_MAP = {
@@ -49,22 +52,20 @@ def _is_unsafe(value: t.Any) -> bool:
             break
 
         val = to_check.pop(0)
+
+        if isinstance(val, AnsibleUndefined):
+            continue
         if isinstance(val, Mapping):
             to_check.extend(val.values())
         elif is_sequence(val):
             to_check.extend(val)
-
-        else:
-            try:
-                if getattr(val, '__UNSAFE__', False):
-                    return True
-            except AttributeError:  # Raised by AnsibleUndefined
-                pass
+        elif getattr(val, '__UNSAFE__', False):
+            return True
 
     return False
 
 
-def ansible_eval_concat(nodes, context: AnsibleUnsafeContext | None = None):
+def ansible_eval_concat(nodes):
     """Return a string of concatenated compiled nodes. Throw an undefined error
     if any of the nodes is undefined.
 
@@ -79,13 +80,16 @@ def ansible_eval_concat(nodes, context: AnsibleUnsafeContext | None = None):
     if not head:
         return ''
 
-    context = context or AnsibleUnsafeContext()
+    unsafe = False
 
     if len(head) == 1:
         out = head[0]
-        context.unsafe = _is_unsafe(out)
+        unsafe = _is_unsafe(out)
 
         if isinstance(out, NativeJinjaText):
+            if unsafe:
+                out = wrap_var(out)
+
             return out
 
         out = to_text(out)
@@ -95,8 +99,8 @@ def ansible_eval_concat(nodes, context: AnsibleUnsafeContext | None = None):
 
         out_values = []
         for v in nodes:
-            if not context.unsafe and _is_unsafe(v):
-                context.unsafe = True
+            if not unsafe and _is_unsafe(v):
+                unsafe = True
 
             out_values.append(to_text(v))
 
@@ -115,29 +119,35 @@ def ansible_eval_concat(nodes, context: AnsibleUnsafeContext | None = None):
         except (TypeError, ValueError, SyntaxError, MemoryError):
             pass
 
+    if unsafe:
+        out = wrap_var(out)
+
     return out
 
 
-def ansible_concat(nodes, context: AnsibleUnsafeContext | None = None):
+def ansible_concat(nodes):
     """Return a string of concatenated compiled nodes. Throw an undefined error
     if any of the nodes is undefined. Other than that it is equivalent to
     Jinja2's default concat function.
 
     Used in Templar.template() when jinja2_native=False and convert_data=False.
     """
-    context = context or AnsibleUnsafeContext()
-
+    unsafe = False
     values = []
     for v in nodes:
-        if not context.unsafe and _is_unsafe(v):
-            context.unsafe = True
+        if not unsafe and _is_unsafe(v):
+            unsafe = True
 
         values.append(to_text(v))
 
-    return ''.join(values)
+    out = ''.join(values)
+    if unsafe:
+        out = wrap_var(out)
+
+    return out
 
 
-def ansible_native_concat(nodes, context: AnsibleUnsafeContext | None = None):
+def ansible_native_concat(nodes):
     """Return a native Python type from the list of compiled nodes. If the
     result is a single node, its value is returned. Otherwise, the nodes are
     concatenated as strings. If the result can be parsed with
@@ -151,16 +161,20 @@ def ansible_native_concat(nodes, context: AnsibleUnsafeContext | None = None):
     if not head:
         return None
 
-    context = context or AnsibleUnsafeContext()
+    unsafe = False
 
     if len(head) == 1:
         out = head[0]
 
-        context.unsafe = _is_unsafe(out)
+        unsafe = _is_unsafe(out)
 
         # TODO send unvaulted data to literal_eval?
         if isinstance(out, AnsibleVaultEncryptedUnicode):
-            return out.data
+            out = out.data
+            if unsafe:
+                out = wrap_var(out)
+
+            return out
 
         if isinstance(out, NativeJinjaText):
             # Sometimes (e.g. ``| string``) we need to mark variables
@@ -170,10 +184,16 @@ def ansible_native_concat(nodes, context: AnsibleUnsafeContext | None = None):
             # https://github.com/ansible/ansible/issues/70831
             # https://github.com/pallets/jinja/issues/1200
             # https://github.com/ansible/ansible/issues/70831#issuecomment-664190894
+            if unsafe:
+                out = wrap_var(out)
+
             return out
 
         # short-circuit literal_eval for anything other than strings
         if not isinstance(out, string_types):
+            if unsafe:
+                out = wrap_var(out)
+
             return out
     else:
         if isinstance(nodes, GeneratorType):
@@ -181,8 +201,8 @@ def ansible_native_concat(nodes, context: AnsibleUnsafeContext | None = None):
 
         out_values = []
         for v in nodes:
-            if not context.unsafe and _is_unsafe(v):
-                context.unsafe = True
+            if not unsafe and _is_unsafe(v):
+                unsafe = True
 
             out_values.append(to_text(v))
 
@@ -196,10 +216,45 @@ def ansible_native_concat(nodes, context: AnsibleUnsafeContext | None = None):
             ast.parse(out, mode='eval')
         )
     except (TypeError, ValueError, SyntaxError, MemoryError):
+        if unsafe:
+            out = wrap_var(out)
+
         return out
 
     if isinstance(evaled, string_types):
         quote = out[0]
-        return f'{quote}{evaled}{quote}'
+        evaled = f'{quote}{evaled}{quote}'
+
+    if unsafe:
+        evaled = wrap_var(evaled)
 
     return evaled
+
+
+class AnsibleUndefined(StrictUndefined):
+    """
+    A custom Undefined class, which returns further Undefined objects on access,
+    rather than throwing an exception.
+    """
+    def __getattr__(self, name):
+        if name == '__UNSAFE__':
+            # AnsibleUndefined should never be assumed to be unsafe
+            # This prevents ``hasattr(val, '__UNSAFE__')`` from evaluating to ``True``
+            raise AttributeError(name)
+        # Return original Undefined object to preserve the first failure context
+        return self
+
+    def __getitem__(self, key):
+        # Return original Undefined object to preserve the first failure context
+        return self
+
+    def __repr__(self):
+        return 'AnsibleUndefined(hint={0!r}, obj={1!r}, name={2!r})'.format(
+            self._undefined_hint,
+            self._undefined_obj,
+            self._undefined_name
+        )
+
+    def __contains__(self, item):
+        # Return original Undefined object to preserve the first failure context
+        return self

@@ -379,19 +379,21 @@
 # https://github.com/ansible/ansible/issues/64169
 - include_vars: 64169.yml
 
-- set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
-  with_dict:
-    foo: __foo
+# unsafe is derived from the final result not if anything unsafe was used
+# like the item.value in this case.
+# - set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
+#   with_dict:
+#     foo: __foo
 
-- debug:
-    var: foo
+# - debug:
+#     var: foo
 
-- assert:
-    that:
-      - foo[0] != 'foo1.0'
-      - foo[0] == unsafe_value
-  vars:
-    unsafe_value: !unsafe 'foo{{ version_64169 }}'
+# - assert:
+#     that:
+#       - foo[0] != 'foo1.0'
+#       - foo[0] == unsafe_value
+#   vars:
+#     unsafe_value: !unsafe 'foo{{ version_64169 }}'
 
 - set_fact: "{{ item.key }}={{ hostvars[inventory_hostname][item.value] }}"
   loop: "{{ dicty_dict|dict2items }}"

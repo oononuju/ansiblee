@@ -3,15 +3,17 @@
 
 from __future__ import annotations
 
-
 import ast
+from collections.abc import Mapping
 from itertools import islice, chain
 from types import GeneratorType
 
+from ansible.module_utils.common.collections import is_sequence
 from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.six import string_types
 from ansible.parsing.yaml.objects import AnsibleVaultEncryptedUnicode
 from ansible.utils.native_jinja import NativeJinjaText
+import ansible.module_utils.compat.typing as t
 
 
 _JSON_MAP = {
@@ -28,7 +30,41 @@ class Json2Python(ast.NodeTransformer):
         return ast.Constant(value=_JSON_MAP[node.id])
 
 
-def ansible_eval_concat(nodes):
+class AnsibleUnsafeContext:
+    def __init__(self):
+        self.unsafe = False
+
+
+def _is_unsafe(value: t.Any) -> bool:
+    """
+    Our helper function, which will also recursively check dict and
+    list entries due to the fact that they may be repr'd and contain
+    a key or value which contains jinja2 syntax and would otherwise
+    lose the AnsibleUnsafe value.
+    """
+    to_check = [value]
+
+    while True:
+        if not to_check:
+            break
+
+        val = to_check.pop(0)
+        if isinstance(val, Mapping):
+            to_check.extend(val.values())
+        elif is_sequence(val):
+            to_check.extend(val)
+
+        else:
+            try:
+                if getattr(val, '__UNSAFE__', False):
+                    return True
+            except AttributeError:  # Raised by AnsibleUndefined
+                pass
+
+    return False
+
+
+def ansible_eval_concat(nodes, context: AnsibleUnsafeContext | None = None):
     """Return a string of concatenated compiled nodes. Throw an undefined error
     if any of the nodes is undefined.
 
@@ -43,8 +79,11 @@ def ansible_eval_concat(nodes):
     if not head:
         return ''
 
+    context = context or AnsibleUnsafeContext()
+
     if len(head) == 1:
         out = head[0]
+        context.unsafe = _is_unsafe(out)
 
         if isinstance(out, NativeJinjaText):
             return out
@@ -53,7 +92,15 @@ def ansible_eval_concat(nodes):
     else:
         if isinstance(nodes, GeneratorType):
             nodes = chain(head, nodes)
-        out = ''.join([to_text(v) for v in nodes])
+
+        out_values = []
+        for v in nodes:
+            if not context.unsafe and _is_unsafe(v):
+                context.unsafe = True
+
+            out_values.append(to_text(v))
+
+        out = ''.join(out_values)
 
     # if this looks like a dictionary, list or bool, convert it to such
     if out.startswith(('{', '[')) or out in ('True', 'False'):
@@ -71,17 +118,26 @@ def ansible_eval_concat(nodes):
     return out
 
 
-def ansible_concat(nodes):
+def ansible_concat(nodes, context: AnsibleUnsafeContext | None = None):
     """Return a string of concatenated compiled nodes. Throw an undefined error
     if any of the nodes is undefined. Other than that it is equivalent to
     Jinja2's default concat function.
 
     Used in Templar.template() when jinja2_native=False and convert_data=False.
     """
-    return ''.join([to_text(v) for v in nodes])
+    context = context or AnsibleUnsafeContext()
+
+    values = []
+    for v in nodes:
+        if not context.unsafe and _is_unsafe(v):
+            context.unsafe = True
+
+        values.append(to_text(v))
+
+    return ''.join(values)
 
 
-def ansible_native_concat(nodes):
+def ansible_native_concat(nodes, context: AnsibleUnsafeContext | None = None):
     """Return a native Python type from the list of compiled nodes. If the
     result is a single node, its value is returned. Otherwise, the nodes are
     concatenated as strings. If the result can be parsed with
@@ -95,8 +151,12 @@ def ansible_native_concat(nodes):
     if not head:
         return None
 
+    context = context or AnsibleUnsafeContext()
+
     if len(head) == 1:
         out = head[0]
+
+        context.unsafe = _is_unsafe(out)
 
         # TODO send unvaulted data to literal_eval?
         if isinstance(out, AnsibleVaultEncryptedUnicode):
@@ -118,7 +178,15 @@ def ansible_native_concat(nodes):
     else:
         if isinstance(nodes, GeneratorType):
             nodes = chain(head, nodes)
-        out = ''.join([to_text(v) for v in nodes])
+
+        out_values = []
+        for v in nodes:
+            if not context.unsafe and _is_unsafe(v):
+                context.unsafe = True
+
+            out_values.append(to_text(v))
+
+        out = ''.join(out_values)
 
     try:
         evaled = ast.literal_eval(

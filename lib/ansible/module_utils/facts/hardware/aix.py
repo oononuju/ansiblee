@@ -133,9 +133,9 @@ class AIXHardware(Hardware):
         ps_bin = self.module.get_bin_path("ps")
         if ps_bin is None:
             return uptime_facts
-        
+
         ps_cmd = [ps_bin, "-p", "1", "-o", "etime="]
-        
+
         rc, out, err = self.module.run_command(ps_cmd)
         if rc != 0:
             return uptime_facts

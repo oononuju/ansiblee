@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import ast
 from collections.abc import Mapping
 from itertools import islice, chain
@@ -31,11 +32,6 @@ class Json2Python(ast.NodeTransformer):
         if node.id not in _JSON_MAP:
             return node
         return ast.Constant(value=_JSON_MAP[node.id])
-
-
-class AnsibleUnsafeContext:
-    def __init__(self):
-        self.unsafe = False
 
 
 def _is_unsafe(value: t.Any) -> bool:

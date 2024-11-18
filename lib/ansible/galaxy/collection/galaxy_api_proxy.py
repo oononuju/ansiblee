@@ -13,8 +13,7 @@ if t.TYPE_CHECKING:
         ConcreteArtifactsManager,
     )
     from ansible.galaxy.dependency_resolution.dataclasses import (
-        Candidate,
-        Requirement,
+        Candidate, Requirement,
     )
 
 from ansible.galaxy.api import GalaxyAPI, GalaxyError

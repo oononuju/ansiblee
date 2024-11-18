@@ -130,15 +130,27 @@ class AIXHardware(Hardware):
         # On AIX, there are no options to get the uptime directly in seconds.
         # Your options are to parse the output of "who", "uptime", or "ps".
         # Only "ps" always provides a field with seconds.
-        rc, out, err = self.module.run_command("/usr/bin/ps -p 1 -o etime=")
+        ps_bin = self.module.get_bin_path("ps")
+        if ps_bin is None:
+            return uptime_facts
+        
+        ps_cmd = [ps_bin, "-p", "1", "-o", "etime="]
+        
+        rc, out, err = self.module.run_command(ps_cmd)
+        if rc != 0:
+            return uptime_facts
+
         # Parse out
         if out:
             lines = out.splitlines()
             data = lines[0].replace(':', '-').split('-')
-            days = int(data[0])
-            hours = int(data[1])
-            minutes = int(data[2])
-            seconds = int(data[3])
+            try:
+                days = int(data[0])
+                hours = int(data[1])
+                minutes = int(data[2])
+                seconds = int(data[3])
+            except (IndexError, ValueError):
+                return uptime_facts
             # Calculate uptime in seconds
             uptime_seconds = (days * 86400) + (hours * 3600) + (minutes * 60) + seconds
             uptime_facts['uptime_seconds'] = int(uptime_seconds)

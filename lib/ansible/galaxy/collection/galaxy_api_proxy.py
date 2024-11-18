@@ -42,7 +42,7 @@ class MultiGalaxyAPIProxy:
         if self.is_offline_mode_requested:
             raise NotImplementedError("The calling code is not supposed to be invoked in 'offline' mode.")
 
-    def _get_collection_versions(self, requirement: Requirement | Candidate) -> t.Iterator[tuple[GalaxyAPI, str]]:
+    def _get_collection_versions(self, requirement: Requirement) -> t.Iterator[tuple[GalaxyAPI, str]]:
         """Helper for get_collection_versions.
 
         Yield api, version pairs for all APIs,
@@ -85,7 +85,7 @@ class MultiGalaxyAPIProxy:
         if not found_api and last_error is not None:
             raise last_error
 
-    def get_collection_versions(self, requirement: Requirement | Candidate) -> t.Iterable[tuple[str, GalaxyAPI]]:
+    def get_collection_versions(self, requirement: Requirement) -> t.Iterable[tuple[str, GalaxyAPI]]:
         """Get a set of unique versions for FQCN on Galaxy servers."""
         if requirement.is_concrete_artifact:
             return {

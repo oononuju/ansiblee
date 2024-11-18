@@ -364,7 +364,7 @@ class CollectionDependencyProvider(AbstractProvider):
 
         return list(preinstalled_candidates) + latest_matches
 
-    def is_satisfied_by(self, requirement: Candidate, candidate: Candidate) -> bool:
+    def is_satisfied_by(self, requirement: Requirement, candidate: Candidate) -> bool:
         r"""Whether the given requirement is satisfiable by a candidate.
 
         :param requirement: A requirement that produced the `candidate`.

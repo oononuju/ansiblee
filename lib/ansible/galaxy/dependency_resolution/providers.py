@@ -165,7 +165,7 @@ class CollectionDependencyProvider(AbstractProvider):
     def find_matches(
         self,
         identifier: str,
-        requirements: t.Mapping[str, t.Iterator[Candidate]],
+        requirements: t.Mapping[str, t.Iterator[Requirement]],
         incompatibilities: t.Mapping[str, t.Iterator[Candidate]]
     ) -> list[Candidate]:
         r"""Find all possible candidates satisfying given requirements.
@@ -195,7 +195,7 @@ class CollectionDependencyProvider(AbstractProvider):
             if not any(match.ver == incompat.ver for incompat in incompatibilities[identifier])
         ]
 
-    def _find_matches(self, requirements: list[Candidate]) -> list[Candidate]:
+    def _find_matches(self, requirements: list[Requirement]) -> list[Candidate]:
         # FIXME: The first requirement may be a Git repo followed by
         # FIXME: its cloned tmp dir. Using only the first one creates
         # FIXME: loops that prevent any further dependency exploration.

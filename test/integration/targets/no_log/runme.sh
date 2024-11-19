@@ -15,7 +15,7 @@ ansible-playbook ansible_no_log_in_result.yml -vvvvv > "${OUTPUT_DIR}/output.log
 
 # deal with corner cases with no log and loops
 # no log enabled, should produce 6 censored messages
-[ "$(ansible-playbook dynamic.yml -i ../../inventory -vvvvv "$@" -e unsafe_show_logs=no|grep -c 'output has been hidden')" = "6" ]  # DT needs 7
+[ "$(ansible-playbook dynamic.yml -i ../../inventory -vvvvv "$@" -e unsafe_show_logs=no|grep -c 'output has been hidden')" = "9" ]  # DT needs 7
 
 # no log disabled, should produce 0 censored
 [ "$(ansible-playbook dynamic.yml -i ../../inventory -vvvvv "$@" -e unsafe_show_logs=yes|grep -c 'output has been hidden')" = "0" ]

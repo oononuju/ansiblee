@@ -622,7 +622,11 @@ class PlayIterator:
                 target_block.always = before + task_list + after
                 state._blocks[state.cur_block] = target_block
         elif state.run_state == IteratingStates.HANDLERS:
-            state.handlers[state.cur_handlers_task:state.cur_handlers_task] = [h for b in task_list for h in b.block]
+            state.handlers[state.cur_handlers_task:state.cur_handlers_task] = [
+                h
+                for b in task_list
+                for h in (b.block if isinstance(b, Block) else [b])
+            ]
 
         return state
 

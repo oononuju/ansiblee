@@ -159,7 +159,8 @@ class CallbackModule(CallbackBase):
 
             # Display the task banner immediately if we're not doing any filtering based on task result
             if self.get_option('display_skipped_hosts') and self.get_option('display_ok_hosts'):
-                self._print_task_banner(task)
+                if self._last_task_banner != task._uuid:
+                    self._print_task_banner(task)
 
     def _print_task_banner(self, task):
         # args can be specified as no_log in several places: in the task or in

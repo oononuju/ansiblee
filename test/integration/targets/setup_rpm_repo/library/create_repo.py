@@ -78,6 +78,9 @@ def create_repo(arch='x86_64'):
                 )
             )
 
+        if spec.binary:
+            pkg.add_simple_compilation(installPath=spec.binary)
+
         pkgs.append(pkg)
 
     repo = YumRepoBuild(pkgs)

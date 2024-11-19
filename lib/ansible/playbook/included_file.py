@@ -20,12 +20,8 @@ from __future__ import annotations
 import os
 
 from ansible import constants as C
-from ansible.errors import AnsibleError
 from ansible.executor.task_executor import remove_omit
-from ansible.module_utils.common.text.converters import to_text
 from ansible.playbook.handler import Handler
-from ansible.playbook.task_include import TaskInclude
-from ansible.playbook.role_include import IncludeRole
 from ansible.template import Templar
 from ansible.utils.display import Display
 
@@ -118,68 +114,20 @@ class IncludedFile:
 
                     if original_task.action in C._ACTION_INCLUDE_TASKS:
                         include_file = None
+                        dirname = 'handlers' if isinstance(original_task, Handler) else 'tasks'
+                        include_target = templar.template(include_result['include'])
+                        candidates = [loader.path_dwim_relative(_path, dirname, include_target, is_role=True) for _path in task_vars['ansible_search_path']]
+                        for include_file in candidates:
+                            try:
+                                # may throw OSError
+                                os.stat(include_file)
+                                # or select the task file if it exists
+                                break
+                            except OSError:
+                                pass
+                        else:
+                            include_file = loader.path_dwim(include_target)
 
-                        if original_task._parent:
-                            # handle relative includes by walking up the list of parent include
-                            # tasks and checking the relative result to see if it exists
-                            parent_include = original_task._parent
-                            cumulative_path = None
-                            while parent_include is not None:
-                                if not isinstance(parent_include, TaskInclude):
-                                    parent_include = parent_include._parent
-                                    continue
-                                if isinstance(parent_include, IncludeRole):
-                                    parent_include_dir = parent_include._role_path
-                                else:
-                                    try:
-                                        parent_include_dir = os.path.dirname(templar.template(parent_include.args.get('_raw_params')))
-                                    except AnsibleError as e:
-                                        parent_include_dir = ''
-                                        display.warning(
-                                            'Templating the path of the parent %s failed. The path to the '
-                                            'included file may not be found. '
-                                            'The error was: %s.' % (original_task.action, to_text(e))
-                                        )
-                                if cumulative_path is not None and not os.path.isabs(cumulative_path):
-                                    cumulative_path = os.path.join(parent_include_dir, cumulative_path)
-                                else:
-                                    cumulative_path = parent_include_dir
-                                include_target = templar.template(include_result['include'])
-                                if original_task._role:
-                                    dirname = 'handlers' if isinstance(original_task, Handler) else 'tasks'
-                                    new_basedir = os.path.join(original_task._role._role_path, dirname, cumulative_path)
-                                    candidates = [
-                                        loader.path_dwim_relative(original_task._role._role_path, dirname, include_target, is_role=True),
-                                        loader.path_dwim_relative(new_basedir, dirname, include_target, is_role=True)
-                                    ]
-                                    for include_file in candidates:
-                                        try:
-                                            # may throw OSError
-                                            os.stat(include_file)
-                                            # or select the task file if it exists
-                                            break
-                                        except OSError:
-                                            pass
-                                else:
-                                    include_file = loader.path_dwim_relative(loader.get_basedir(), cumulative_path, include_target)
-
-                                if os.path.exists(include_file):
-                                    break
-                                else:
-                                    parent_include = parent_include._parent
-
-                        if include_file is None:
-                            if original_task._role:
-                                include_target = templar.template(include_result['include'])
-                                include_file = loader.path_dwim_relative(
-                                    original_task._role._role_path,
-                                    'handlers' if isinstance(original_task, Handler) else 'tasks',
-                                    include_target,
-                                    is_role=True)
-                            else:
-                                include_file = loader.path_dwim(include_result['include'])
-
-                        include_file = templar.template(include_file)
                         inc_file = IncludedFile(include_file, include_args, special_vars, original_task)
                     else:
                         # template the included role's name here

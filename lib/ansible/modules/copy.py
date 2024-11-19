@@ -451,6 +451,20 @@ def copy_common_dirs(src, dest, module):
     return changed
 
 
+def copy_directory(src, dest, module):
+    if not os.path.exists(dest):
+        if not module.check_mode:
+            shutil.copytree(src, dest, symlinks=not module.params['local_follow'])
+            chown_recursive(dest, module)
+        changed = True
+    else:
+        diff_files_changed = copy_diff_files(src, dest, module)
+        left_only_changed = copy_left_only(src, dest, module)
+        common_dirs_changed = copy_common_dirs(src, dest, module)
+        changed = diff_files_changed or left_only_changed or common_dirs_changed
+    return changed
+
+
 def main():
 
     module = AnsibleModule(
@@ -632,59 +646,16 @@ def main():
         changed = True
 
     # If neither have checksums, both src and dest are directories.
-    if checksum_src is None and checksum_dest is None:
-        if remote_src and os.path.isdir(module.params['src']):
-            b_src = to_bytes(module.params['src'], errors='surrogate_or_strict')
-            b_dest = to_bytes(module.params['dest'], errors='surrogate_or_strict')
+    if checksum_src is None and checksum_dest is None and remote_src and os.path.isdir(module.params['src']):
+        b_src = to_bytes(module.params['src'], errors='surrogate_or_strict')
+        b_dest = to_bytes(module.params['dest'], errors='surrogate_or_strict')
 
-            if src.endswith(os.path.sep) and os.path.isdir(module.params['dest']):
-                diff_files_changed = copy_diff_files(b_src, b_dest, module)
-                left_only_changed = copy_left_only(b_src, b_dest, module)
-                common_dirs_changed = copy_common_dirs(b_src, b_dest, module)
-                owner_group_changed = chown_recursive(b_dest, module)
-                if diff_files_changed or left_only_changed or common_dirs_changed or owner_group_changed:
-                    changed = True
+        if not b_src.endswith(to_bytes(os.path.sep)):
+            b_basename = os.path.basename(b_src)
+            b_dest = os.path.join(b_dest, b_basename)
+            b_src = os.path.join(b_src, b'')
 
-            if src.endswith(os.path.sep) and not os.path.exists(module.params['dest']):
-                b_basename = to_bytes(os.path.basename(src), errors='surrogate_or_strict')
-                b_dest = to_bytes(os.path.join(b_dest, b_basename), errors='surrogate_or_strict')
-                b_src = to_bytes(os.path.join(module.params['src'], ""), errors='surrogate_or_strict')
-                if not module.check_mode:
-                    shutil.copytree(b_src, b_dest, symlinks=not local_follow)
-                chown_recursive(dest, module)
-                changed = True
-
-            if not src.endswith(os.path.sep) and os.path.isdir(module.params['dest']):
-                b_basename = to_bytes(os.path.basename(src), errors='surrogate_or_strict')
-                b_dest = to_bytes(os.path.join(b_dest, b_basename), errors='surrogate_or_strict')
-                b_src = to_bytes(os.path.join(module.params['src'], ""), errors='surrogate_or_strict')
-                if not module.check_mode and not os.path.exists(b_dest):
-                    shutil.copytree(b_src, b_dest, symlinks=not local_follow)
-                    changed = True
-                    chown_recursive(dest, module)
-                if module.check_mode and not os.path.exists(b_dest):
-                    changed = True
-                if os.path.exists(b_dest):
-                    diff_files_changed = copy_diff_files(b_src, b_dest, module)
-                    left_only_changed = copy_left_only(b_src, b_dest, module)
-                    common_dirs_changed = copy_common_dirs(b_src, b_dest, module)
-                    owner_group_changed = chown_recursive(b_dest, module)
-                    if diff_files_changed or left_only_changed or common_dirs_changed or owner_group_changed:
-                        changed = True
-
-            if not src.endswith(os.path.sep) and not os.path.exists(module.params['dest']):
-                b_basename = to_bytes(os.path.basename(module.params['src']), errors='surrogate_or_strict')
-                b_dest = to_bytes(os.path.join(b_dest, b_basename), errors='surrogate_or_strict')
-                if not module.check_mode and not os.path.exists(b_dest):
-                    os.makedirs(b_dest)
-                    changed = True
-                    b_src = to_bytes(os.path.join(module.params['src'], ""), errors='surrogate_or_strict')
-                    diff_files_changed = copy_diff_files(b_src, b_dest, module)
-                    left_only_changed = copy_left_only(b_src, b_dest, module)
-                    common_dirs_changed = copy_common_dirs(b_src, b_dest, module)
-                    owner_group_changed = chown_recursive(b_dest, module)
-                if module.check_mode and not os.path.exists(b_dest):
-                    changed = True
+        changed |= copy_directory(b_src, b_dest, module)
 
     res_args = dict(
         dest=dest, src=src, md5sum=md5sum_src, checksum=checksum_src, changed=changed

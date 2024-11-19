@@ -42,16 +42,23 @@ def _is_unsafe(value: t.Any) -> bool:
     lose the AnsibleUnsafe value.
     """
     to_check = [value]
+    seen = set()
 
     while True:
         if not to_check:
             break
 
         val = to_check.pop(0)
+        val_id = id(val)
+
+        if val_id in seen:
+            continue
+        seen.add(val_id)
 
         if isinstance(val, AnsibleUndefined):
             continue
         if isinstance(val, Mapping):
+            to_check.extend(val.keys())
             to_check.extend(val.values())
         elif is_sequence(val):
             to_check.extend(val)
@@ -80,14 +87,11 @@ def ansible_eval_concat(nodes):
 
     if len(head) == 1:
         out = head[0]
-        unsafe = _is_unsafe(out)
 
         if isinstance(out, NativeJinjaText):
-            if unsafe:
-                out = wrap_var(out)
-
             return out
 
+        unsafe = _is_unsafe(out)
         out = to_text(out)
     else:
         if isinstance(nodes, GeneratorType):
@@ -162,15 +166,9 @@ def ansible_native_concat(nodes):
     if len(head) == 1:
         out = head[0]
 
-        unsafe = _is_unsafe(out)
-
         # TODO send unvaulted data to literal_eval?
         if isinstance(out, AnsibleVaultEncryptedUnicode):
-            out = out.data
-            if unsafe:
-                out = wrap_var(out)
-
-            return out
+            return out.data
 
         if isinstance(out, NativeJinjaText):
             # Sometimes (e.g. ``| string``) we need to mark variables
@@ -180,17 +178,14 @@ def ansible_native_concat(nodes):
             # https://github.com/ansible/ansible/issues/70831
             # https://github.com/pallets/jinja/issues/1200
             # https://github.com/ansible/ansible/issues/70831#issuecomment-664190894
-            if unsafe:
-                out = wrap_var(out)
-
             return out
 
         # short-circuit literal_eval for anything other than strings
         if not isinstance(out, string_types):
-            if unsafe:
-                out = wrap_var(out)
-
             return out
+
+        unsafe = _is_unsafe(out)
+
     else:
         if isinstance(nodes, GeneratorType):
             nodes = chain(head, nodes)

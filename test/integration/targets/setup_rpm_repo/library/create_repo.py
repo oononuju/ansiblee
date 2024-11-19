@@ -81,6 +81,9 @@ def create_repo(arch='x86_64'):
                 )
             )
 
+        if spec.binary:
+            pkg.add_simple_compilation(installPath=spec.binary)
+
         pkgs.append(pkg)
 
     # HACK: EPEL6 version of rpmfluff can't do multi-arch packaging, so we'll just build separately and copy

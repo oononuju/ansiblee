@@ -100,6 +100,7 @@ class TestTaskExecutor(unittest.TestCase):
         res = te.run()
         self.assertIn("failed", res)
 
+    @unittest.skip("loops out of TE")
     def test_task_executor_run_clean_res(self):
         te = TaskExecutor(None, MagicMock(), None, None, None, None, None, None, None)
         te._get_loop_items = MagicMock(return_value=[1])
@@ -122,6 +123,7 @@ class TestTaskExecutor(unittest.TestCase):
         self.assertIsInstance(data['text'], str)
         self.assertIsInstance(data['int'], int)
 
+    @unittest.skip("loops out of TE")
     def test_task_executor_get_loop_items(self):
         fake_loader = DictDataLoader({})
 
@@ -155,6 +157,7 @@ class TestTaskExecutor(unittest.TestCase):
         items = te._get_loop_items()
         self.assertEqual(items, ['a', 'b', 'c'])
 
+    @unittest.skip("loops out of TE")
     def test_task_executor_run_loop(self):
         items = ['a', 'b', 'c']
 

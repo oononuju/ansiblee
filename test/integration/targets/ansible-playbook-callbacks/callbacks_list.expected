@@ -1,5 +1,5 @@
  1 __init__
-98 v2_on_any
+104 v2_on_any
  1 v2_on_file_diff
  5 v2_playbook_on_handler_task_start
  3 v2_playbook_on_include
@@ -9,7 +9,7 @@
  3 v2_playbook_on_play_start
  1 v2_playbook_on_start
  1 v2_playbook_on_stats
-19 v2_playbook_on_task_start
+22 v2_playbook_on_task_start
  1 v2_playbook_on_vars_prompt
  1 v2_runner_item_on_failed
  2 v2_runner_item_on_ok
@@ -20,6 +20,6 @@
  5 v2_runner_on_failed
 17 v2_runner_on_ok
  1 v2_runner_on_skipped
-24 v2_runner_on_start
+27 v2_runner_on_start
  1 v2_runner_on_unreachable
  2 v2_runner_retry

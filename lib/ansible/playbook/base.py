@@ -639,6 +639,8 @@ class FieldAttributeBase:
                 attrs[name] = attr.serialize()
             else:
                 attrs[name] = attr
+        if (loop_idx := getattr(self, 'loop_idx', Sentinel)) is not Sentinel:
+            attrs['loop_idx'] = loop_idx
         return attrs
 
     def from_attrs(self, attrs):
@@ -722,8 +724,8 @@ class Base(FieldAttributeBase):
     environment = FieldAttribute(isa='list', extend=True, prepend=True)
     no_log = FieldAttribute(isa='bool', default=C.DEFAULT_NO_LOG)
     run_once = FieldAttribute(isa='bool')
-    ignore_errors = FieldAttribute(isa='bool')
-    ignore_unreachable = FieldAttribute(isa='bool')
+    ignore_errors = FieldAttribute(isa='bool', default=False)
+    ignore_unreachable = FieldAttribute(isa='bool', default=False)
     check_mode = FieldAttribute(isa='bool', default=context.cliargs_deferred_get('check'))
     diff = FieldAttribute(isa='bool', default=context.cliargs_deferred_get('diff'))
     any_errors_fatal = FieldAttribute(isa='bool', default=C.ANY_ERRORS_FATAL)

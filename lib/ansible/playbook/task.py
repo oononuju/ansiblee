@@ -92,6 +92,8 @@ class Task(Base, Conditional, Taggable, CollectionSearch, Notifiable, Delegatabl
         self._parent = None
         self.implicit = False
         self.resolved_action = None
+        self.loop_idx = None
+        self.loop_vars = {}
 
         if task_include:
             self._parent = task_include
@@ -370,6 +372,10 @@ class Task(Base, Conditional, Taggable, CollectionSearch, Notifiable, Delegatabl
 
         all_vars |= self.vars
 
+        # FIXME ??????
+        if self.loop_vars:
+            all_vars |= self.loop_vars
+
         if 'tags' in all_vars:
             del all_vars['tags']
         if 'when' in all_vars:
@@ -399,6 +405,8 @@ class Task(Base, Conditional, Taggable, CollectionSearch, Notifiable, Delegatabl
         new_me.implicit = self.implicit
         new_me.resolved_action = self.resolved_action
         new_me._uuid = self._uuid
+        new_me.loop_idx = self.loop_idx
+        new_me.loop_vars = self.loop_vars  # FIXME? likely no need to copy() as loop_vars are created for specific already copied task
 
         return new_me
 

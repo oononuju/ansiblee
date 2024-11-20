@@ -5,6 +5,9 @@
         - name: Test against dnf5 nightly build to detect any issues early
           command: dnf copr enable -y rpmsoftwaremanagement/dnf-nightly
 
+        - name: Ensure module deps are not installed
+          command: dnf remove -y python3-libdnf5
+
         - name: Test the auto_install_module_deps option
           dnf5:
             name: sos

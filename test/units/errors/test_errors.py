@@ -152,7 +152,7 @@ class TestErrors(unittest.TestCase):
         no_display_errors = ('NoneType: None', )
         result = {}
         try:
-            raise AnsibleActionFail("test exception") 
+            raise AnsibleActionFail("test exception")
         except Exception as e:
             result = e.result
 

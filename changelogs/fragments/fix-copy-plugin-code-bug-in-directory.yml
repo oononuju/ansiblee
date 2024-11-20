@@ -1,0 +1,2 @@
+bugfixes:
+  - fix bug in copy plugin where directory may be repeatedly using the file module to create

@@ -525,11 +525,13 @@ class ActionModule(ActionBase):
                 result.update(module_return)
                 return self._ensure_invocation(result)
 
-            paths = os.path.split(source_rel)
+            paths = source_rel.split(os.path.sep)
             dir_path = ''
-            for dir_component in paths:
-                os.path.join(dir_path, dir_component)
+            # skip last file name
+            for dir_component in paths[:-1]:
+                dir_path = os.path.join(dir_path, dir_component)
                 implicit_directories.add(dir_path)
+
             if 'diff' in result and not result['diff']:
                 del result['diff']
             module_executed = True

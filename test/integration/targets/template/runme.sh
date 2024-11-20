@@ -41,6 +41,10 @@ ansible-playbook 72262.yml -v "$@"
 # ensure unsafe is preserved, even with extra newlines
 ansible-playbook unsafe.yml -v "$@"
 
+# CVE 2024-11079
+ANSIBLE_JINJA2_NATIVE=true ansible-playbook cve-2024-11079.yml -v "$@"
+ANSIBLE_JINJA2_NATIVE=false ansible-playbook cve-2024-11079.yml -v "$@"
+
 # ensure Jinja2 overrides from a template are used
 ansible-playbook template_overrides.yml -v "$@"
 

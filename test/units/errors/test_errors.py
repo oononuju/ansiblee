@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import unittest
 from unittest.mock import mock_open, patch
-from ansible.errors import AnsibleError
+from ansible.errors import AnsibleError, AnsibleActionFail
 from ansible.parsing.yaml.objects import AnsibleBaseYAMLObject
+from ansible.module_utils.common.text.converters import to_text
 
 
 class TestErrors(unittest.TestCase):
@@ -146,3 +147,24 @@ class TestErrors(unittest.TestCase):
                 ("This is the error message\n\nThe error appears to be in 'foo.yml': line 5, column 1, but may\nbe elsewhere in the file depending on "
                  "the exact syntax problem.\n\nThe offending line appears to be:\n\nthis is line 2\nthis is line 3\n^ here\n")
             )
+
+    def test_error_message(self):
+        no_display_errors = ('NoneType: None', )
+        result = {}
+        try:
+            raise AnsibleActionFail("test exception") 
+        except Exception as e:
+            result = e.result
+
+        msg = ""
+        if 'exception' in result:
+            exception_str = to_text(result['exception'])
+            error = exception_str.strip().split('\n')[-1]
+            msg = "An exception occurred during task execution. To see the full traceback, use -vvv."
+            if error and not error.strip() in no_display_errors:
+                msg += " The error was: %s" % error
+
+        self.assertEqual(
+            msg,
+            "An exception occurred during task execution. To see the full traceback, use -vvv."
+        )

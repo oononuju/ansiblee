@@ -164,6 +164,7 @@ class CallbackBase(AnsiblePlugin):
             self.set_options(options)
 
         self._hide_in_debug = ('changed', 'failed', 'skipped', 'invocation', 'skip_reason')
+        self._no_display_errors = ('NoneType: None',)
 
     # helper for callbacks, so they don't all have to include deepcopy
     _copy_result = deepcopy
@@ -305,7 +306,9 @@ class CallbackBase(AnsiblePlugin):
             if self._display.verbosity < 3:
                 # extract just the actual error message from the exception text
                 error = exception_str.strip().split('\n')[-1]
-                msg += "To see the full traceback, use -vvv. The error was: %s" % error
+                msg += "To see the full traceback, use -vvv."
+                if error and not error.strip() in self._no_display_errors:
+                    msg += " The error was: %s" % error
             else:
                 msg = "The full traceback is:\n" + exception_str
                 del result['exception']

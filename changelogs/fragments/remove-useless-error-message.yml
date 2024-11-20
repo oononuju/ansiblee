@@ -1,0 +1,3 @@
+bugfixes:
+  - Remove useless error message when an exception occurs without specific information
+  - Fix a display.debug statement with the wrong param in _get_diff_data() method

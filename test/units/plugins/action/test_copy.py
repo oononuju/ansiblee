@@ -6,7 +6,7 @@ import unittest
 
 
 class TestCopyDirectoryData(unittest.TestCase):
- 
+
     def test_copy_directory(self):
         """Verify code from copy plugin"""
         source_files = {
@@ -39,10 +39,12 @@ class TestCopyDirectoryData(unittest.TestCase):
             # skip last file name
             for dir_component in paths[:-1]:
                 dir_path = os.path.join(dir_path, dir_component)
-                print(dir_path)
                 implicit_directories.add(dir_path)
 
-        self.assertSetEqual(implicit_directories, {'a', 'b', 'e', 'b/bb', 'e/eb'})
+        self.assertSetEqual(
+                implicit_directories,
+                {'a', 'b', 'e', 'b/bb', 'e/eb'}
+        )
 
         leaves = set()
         for src, dest_path in source_files['directories']:

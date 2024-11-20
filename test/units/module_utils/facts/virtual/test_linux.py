@@ -50,16 +50,38 @@ def mock_dev_kvm(filename):
     return filename in ("/dev/kvm",)
 
 
+def mock_filepath_rhv(filename):
+    return filename in (
+        "/sys/devices/virtual/dmi/id/sys_vendor",
+        "/sys/devices/virtual/dmi/id/product_family",
+    )
+
+
+def mock_filepath_rhev(filename):
+    return filename in (
+        "/sys/devices/virtual/dmi/id/sys_vendor",
+        "/sys/devices/virtual/dmi/id/product_name",
+    )
+
+
+def mock_filepath_product_name(filename):
+    return filename in ("/sys/devices/virtual/dmi/id/product_name",)
+
+
+def mock_filepath_bios_vendor(filename):
+    return filename in ("/sys/devices/virtual/dmi/id/bios_vendor",)
+
+
+def mock_filepath_sys_vendor(filename):
+    return filename in ("/sys/devices/virtual/dmi/id/sys_vendor",)
+
+
 def mock_get_file_content_xen(filename):
     return "Xen" if filename == "/sys/devices/virtual/dmi/id/bios_vendor" else None
 
 
 def mock_get_file_content_kvm(filename):
     return "KVM" if filename == "/sys/devices/virtual/dmi/id/product_name" else None
-
-
-def mock_sys_vendor_exists(filename):
-    return True if filename in ("/sys/devices/virtual/dmi/id/sys_vendor",) else False
 
 
 def mock_get_file_content_ovirt(filename):
@@ -352,6 +374,7 @@ def test_get_virtual_facts_procxen_guest(mocker):
 
 
 def test_get_virtual_facts_kvm_guest(mocker):
+    mocker.patch("os.path.exists", side_effect=mock_filepath_product_name)
     mocker.patch(
         "ansible.module_utils.facts.virtual.linux.get_file_content",
         side_effect=mock_get_file_content_kvm,
@@ -370,7 +393,7 @@ def test_get_virtual_facts_kvm_guest(mocker):
 
 
 def test_get_virtual_facts_ovirt_guest(mocker):
-    mocker.patch("os.path.exists", side_effect=mock_sys_vendor_exists)
+    mocker.patch("os.path.exists", side_effect=mock_filepath_sys_vendor)
     mocker.patch(
         "ansible.module_utils.facts.virtual.linux.get_file_content",
         side_effect=mock_get_file_content_ovirt,
@@ -389,66 +412,78 @@ def test_get_virtual_facts_ovirt_guest(mocker):
 
 
 @pytest.mark.parametrize(
-    ("mock_method", "expected_hypervisor"),
+    ("mock_method", "mock_filepath_method", "expected_hypervisor"),
     [
         pytest.param(
             mock_get_file_content_rhv,
+            mock_filepath_rhv,
             "RHV",
             id="RHV",
         ),
         pytest.param(
             mock_get_file_content_rhev,
+            mock_filepath_rhev,
             "RHEV",
             id="RHEV",
         ),
         pytest.param(
             mock_get_file_content_vmware,
+            mock_filepath_product_name,
             "VMware",
             id="VMware",
         ),
         pytest.param(
             mock_get_file_content_openstack,
+            mock_filepath_product_name,
             "openstack",
             id="OpenStack",
         ),
         pytest.param(
             mock_get_file_content_xen_bios_vendor,
+            mock_filepath_bios_vendor,
             "xen",
             id="Xen",
         ),
         pytest.param(
             mock_get_file_content_virtualbox,
+            mock_filepath_bios_vendor,
             "virtualbox",
             id="VirtualBox",
         ),
         pytest.param(
             mock_get_file_content_nutanix,
+            mock_filepath_sys_vendor,
             "kvm",
             id="Nutanix",
         ),
         pytest.param(
             mock_get_file_content_kubevirt,
+            mock_filepath_sys_vendor,
             "KubeVirt",
             id="KubeVirt",
         ),
         pytest.param(
             mock_get_file_content_microsoft,
+            mock_filepath_sys_vendor,
             "VirtualPC",
             id="VirtualPC",
         ),
         pytest.param(
             mock_get_file_content_parallel,
+            mock_filepath_sys_vendor,
             "parallels",
             id="Parallels",
         ),
         pytest.param(
             mock_get_file_content_openstack_sys,
+            mock_filepath_sys_vendor,
             "openstack",
             id="OpenStack Foundation",
         ),
     ],
 )
-def test_get_virtual_facts_guest(mocker, mock_method, expected_hypervisor):
+def test_get_virtual_facts_guest(mocker, mock_method, mock_filepath_method, expected_hypervisor):
+    mocker.patch("os.path.exists", side_effect=mock_filepath_method)
     mocker.patch(
         "ansible.module_utils.facts.virtual.linux.get_file_content",
         side_effect=mock_method,
@@ -666,6 +701,7 @@ def test_get_virtual_facts_dev_kvm(mocker):
 
 
 def test_get_virtual_facts_na(mocker):
+    mocker.patch("os.path.exists", return_value=False)
     module = mocker.Mock()
     module.run_command.return_value = (0, "", "")
     inst = linux.LinuxVirtual(module)

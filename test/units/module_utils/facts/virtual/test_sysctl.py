@@ -5,7 +5,6 @@
 
 import pytest
 
-from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.facts.virtual.sysctl import VirtualSysctlDetectionMixin
 
 

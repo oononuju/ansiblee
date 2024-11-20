@@ -42,8 +42,8 @@ class TestCopyDirectoryData(unittest.TestCase):
                 implicit_directories.add(dir_path)
 
         self.assertSetEqual(
-                implicit_directories,
-                {'a', 'b', 'e', 'b/bb', 'e/eb'}
+            implicit_directories,
+            {'a', 'b', 'e', 'b/bb', 'e/eb'}
         )
 
         leaves = set()

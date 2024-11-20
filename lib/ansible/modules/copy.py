@@ -378,8 +378,7 @@ def copy_diff_files(src, dest, module):
                 shutil.copyfile(b_src_item_path, b_dest_item_path)
                 shutil.copymode(b_src_item_path, b_dest_item_path)
 
-            module.set_owner_if_different(b_dest_item_path, owner, False)
-            module.set_group_if_different(b_dest_item_path, group, False)
+            chown_path(module, b_dest_item_path, owner, group)
             changed = True
     return changed
 
@@ -411,8 +410,7 @@ def copy_left_only(src, dest, module):
 
             if os.path.islink(b_src_item_path) and os.path.isfile(b_src_item_path) and local_follow is True:
                 shutil.copyfile(b_src_item_path, b_dest_item_path)
-                module.set_owner_if_different(b_dest_item_path, owner, False)
-                module.set_group_if_different(b_dest_item_path, group, False)
+                chown_path(module, b_dest_item_path, owner, group)
 
             if os.path.islink(b_src_item_path) and os.path.isfile(b_src_item_path) and local_follow is False:
                 linkto = os.readlink(b_src_item_path)
@@ -421,9 +419,7 @@ def copy_left_only(src, dest, module):
             if not os.path.islink(b_src_item_path) and os.path.isfile(b_src_item_path):
                 shutil.copyfile(b_src_item_path, b_dest_item_path)
                 shutil.copymode(b_src_item_path, b_dest_item_path)
-
-                module.set_owner_if_different(b_dest_item_path, owner, False)
-                module.set_group_if_different(b_dest_item_path, group, False)
+                chown_path(module, b_dest_item_path, owner, group)
 
             if not os.path.islink(b_src_item_path) and os.path.isdir(b_src_item_path):
                 shutil.copytree(b_src_item_path, b_dest_item_path, symlinks=not local_follow)
@@ -617,8 +613,7 @@ def main():
                     # if we have a mode, make sure we set it on the temporary
                     # file source as some validations may require it
                     module.set_mode_if_different(src, mode, False)
-                    module.set_owner_if_different(src, owner, False)
-                    module.set_group_if_different(src, group, False)
+                    chown_path(module, src, owner, group)
                     if "%s" not in validate:
                         module.fail_json(msg="validate must contain %%s: %s" % (validate))
                     (rc, out, err) = module.run_command(validate % src)

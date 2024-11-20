@@ -6,7 +6,7 @@ import unittest
 
 
 class TestCopyDirectoryData(unittest.TestCase):
-    
+ 
     def test_copy_directory(self):
         """Verify code from copy plugin"""
         source_files = {

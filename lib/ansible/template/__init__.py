@@ -48,7 +48,7 @@ from ansible.module_utils.six import string_types
 from ansible.module_utils.common.text.converters import to_native, to_text, to_bytes
 from ansible.module_utils.common.collections import is_sequence
 from ansible.plugins.loader import filter_loader, lookup_loader, test_loader
-from ansible.template.native_helpers import ansible_native_concat, ansible_eval_concat, ansible_concat
+from ansible.template.native_helpers import AnsibleUndefined, ansible_native_concat, ansible_eval_concat, ansible_concat
 from ansible.template.template import AnsibleJ2Template
 from ansible.template.vars import AnsibleJ2Vars
 from ansible.utils.display import Display
@@ -310,35 +310,6 @@ def _wrap_native_text(func):
         return NativeJinjaText(ret)
 
     return functools.update_wrapper(wrapper, func)
-
-
-class AnsibleUndefined(StrictUndefined):
-    '''
-    A custom Undefined class, which returns further Undefined objects on access,
-    rather than throwing an exception.
-    '''
-    def __getattr__(self, name):
-        if name == '__UNSAFE__':
-            # AnsibleUndefined should never be assumed to be unsafe
-            # This prevents ``hasattr(val, '__UNSAFE__')`` from evaluating to ``True``
-            raise AttributeError(name)
-        # Return original Undefined object to preserve the first failure context
-        return self
-
-    def __getitem__(self, key):
-        # Return original Undefined object to preserve the first failure context
-        return self
-
-    def __repr__(self):
-        return 'AnsibleUndefined(hint={0!r}, obj={1!r}, name={2!r})'.format(
-            self._undefined_hint,
-            self._undefined_obj,
-            self._undefined_name
-        )
-
-    def __contains__(self, item):
-        # Return original Undefined object to preserve the first failure context
-        return self
 
 
 class AnsibleContext(Context):

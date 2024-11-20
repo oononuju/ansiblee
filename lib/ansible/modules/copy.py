@@ -642,7 +642,9 @@ def main():
         changed = True
 
     # If neither have checksums, both src and dest are directories.
-    if checksum_src is None and checksum_dest is None and remote_src and os.path.isdir(module.params['src']):
+    checksums_none = checksum_src is None and checksum_dest is None
+    both_directories = os.path.isdir(module.params['src']) and (os.path.isdir(module.params['dest']) or not os.path.exists(module.params['dest']))
+    if checksums_none and remote_src and both_directories:
         b_src = to_bytes(module.params['src'], errors='surrogate_or_strict')
         b_dest = to_bytes(module.params['dest'], errors='surrogate_or_strict')
 

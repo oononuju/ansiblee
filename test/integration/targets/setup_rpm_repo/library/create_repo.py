@@ -15,15 +15,17 @@ from ansible.module_utils.common.respawn import has_respawned, probe_interpreter
 HAS_RPMFLUFF = True
 can_use_rpm_weak_deps = None
 try:
-    from rpmfluff import SimpleRpmBuild, GeneratedSourceFile, make_gif
+    from rpmfluff import SimpleRpmBuild, GeneratedSourceFile, make_gif, expectedArch
     from rpmfluff import YumRepoBuild
 except ImportError:
     try:
         from rpmfluff.make import make_gif
         from rpmfluff.sourcefile import GeneratedSourceFile
         from rpmfluff.rpmbuild import SimpleRpmBuild
+        from rpmfluff.utils import expectedArch
         from rpmfluff.yumrepobuild import YumRepoBuild
     except ImportError:
+        expectedArch = None  # define here to avoid NameError as it is used on top level in SPECS
         HAS_RPMFLUFF = False
 
 can_use_rpm_weak_deps = None
@@ -37,25 +39,27 @@ if HAS_RPMFLUFF:
             pass
 
 
-RPM = namedtuple('RPM', ['name', 'version', 'release', 'epoch', 'recommends', 'file', 'arch'])
+RPM = namedtuple('RPM', ['name', 'version', 'release', 'epoch', 'recommends', 'file', 'arch', 'binary'])
 
 SPECS = [
-    RPM('dinginessentail', '1.0', '1', None, None, None, None),
-    RPM('dinginessentail', '1.0', '2', '1', None, None, None),
-    RPM('dinginessentail', '1.1', '1', '1', None, None, None),
-    RPM('dinginessentail-olive', '1.0', '1', None, None, None, None),
-    RPM('dinginessentail-olive', '1.1', '1', None, None, None, None),
-    RPM('landsidescalping', '1.0', '1', None, None, None, None),
-    RPM('landsidescalping', '1.1', '1', None, None, None, None),
-    RPM('dinginessentail-with-weak-dep', '1.0', '1', None, ['dinginessentail-weak-dep'], None, None),
-    RPM('dinginessentail-weak-dep', '1.0', '1', None, None, None, None),
-    RPM('noarchfake', '1.0', '1', None, None, None, 'noarch'),
-    RPM('provides_foo_a', '1.0', '1', None, None, 'foo.gif', 'noarch'),
-    RPM('provides_foo_b', '1.0', '1', None, None, 'foo.gif', 'noarch'),
-    RPM('number-11-name', '11.0', '1', None, None, None, None),
-    RPM('number-11-name', '11.1', '1', None, None, None, None),
-    RPM('epochone', '1.0', '1', '1', None, None, "noarch"),
-    RPM('epochone', '1.1', '1', '1', None, None, "noarch"),
+    RPM('dinginessentail', '1.0', '1', None, None, None, None, None),
+    RPM('dinginessentail', '1.0', '2', '1', None, None, None, None),
+    RPM('dinginessentail', '1.1', '1', '1', None, None, None, None),
+    RPM('dinginessentail-olive', '1.0', '1', None, None, None, None, None),
+    RPM('dinginessentail-olive', '1.1', '1', None, None, None, None, None),
+    RPM('landsidescalping', '1.0', '1', None, None, None, None, None),
+    RPM('landsidescalping', '1.1', '1', None, None, None, None, None),
+    RPM('dinginessentail-with-weak-dep', '1.0', '1', None, ['dinginessentail-weak-dep'], None, None, None),
+    RPM('dinginessentail-weak-dep', '1.0', '1', None, None, None, None, None),
+    RPM('noarchfake', '1.0', '1', None, None, None, 'noarch', None),
+    RPM('provides_foo_a', '1.0', '1', None, None, 'foo.gif', 'noarch', None),
+    RPM('provides_foo_b', '1.0', '1', None, None, 'foo.gif', 'noarch', None),
+    RPM('number-11-name', '11.0', '1', None, None, None, None, None),
+    RPM('number-11-name', '11.1', '1', None, None, None, None, None),
+    RPM('epochone', '1.0', '1', '1', None, None, "noarch", None),
+    RPM('epochone', '1.1', '1', '1', None, None, "noarch", None),
+    RPM('provides-binary', '1.0', '1', '1', None, None, expectedArch, '/usr/sbin/package-name'),
+    RPM('package-name', '1.0', '1', '1', None, None, "noarch", None),
 ]
 
 
@@ -98,7 +102,7 @@ def create_repo(arch='x86_64'):
         subprocess.call("cp {0}/*.rpm {1}".format(noarch_repo.repoDir, repo.repoDir), shell=True)
     else:
         repo = YumRepoBuild(pkgs)
-        repo.make(arch, 'noarch')
+        repo.make(arch, 'noarch', expectedArch)
 
     for pkg in pkgs:
         pkg.clean()

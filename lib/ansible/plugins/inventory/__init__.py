@@ -407,7 +407,7 @@ class Constructable(object):
                         raw_parent_name = keyed.get('parent_group', None)
                         if raw_parent_name:
                             try:
-                                raw_parent_name = self.templar.template(raw_parent_name)
+                                raw_parent_name = self.templar.template(raw_parent_name, variables)
                             except AnsibleError as e:
                                 if strict:
                                     raise AnsibleParserError("Could not generate parent group %s for group %s: %s" % (raw_parent_name, key, to_native(e)))

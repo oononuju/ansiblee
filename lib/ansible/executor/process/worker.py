@@ -29,7 +29,7 @@ from multiprocessing.queues import Queue
 from ansible import context
 from ansible.errors import AnsibleConnectionFailure, AnsibleError
 from ansible.executor.task_executor import TaskExecutor
-from ansible.executor.task_queue_manager import FinalQueue
+from ansible.executor.task_queue_manager import FinalQueue, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO
 from ansible.inventory.host import Host
 from ansible.module_utils.common.collections import is_sequence
 from ansible.module_utils.common.text.converters import to_text
@@ -45,10 +45,6 @@ from ansible.vars.manager import VariableManager
 from jinja2.exceptions import TemplateNotFound
 
 __all__ = ['WorkerProcess']
-
-STDIN_FILENO = 0
-STDOUT_FILENO = 1
-STDERR_FILENO = 2
 
 display = Display()
 

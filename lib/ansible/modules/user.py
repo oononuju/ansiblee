@@ -625,6 +625,7 @@ class User(object):
         self.inactive = module.params['password_expire_account_disable']
         self.uid_min = module.params['uid_min']
         self.uid_max = module.params['uid_max']
+        self.rootdir = None
 
         if self.local:
             if self.umask is not None:

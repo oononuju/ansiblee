@@ -291,6 +291,12 @@ options:
             - Requires O(local) is omitted or V(False).
         type: int
         version_added: "2.18"
+    rootdir:
+        description:
+            - chroot directory where to execute the pw command
+            - Currently only supported on FreeBSD
+        type: int
+        version_added: "2.18"
 
 extends_documentation_fragment: action_common_attributes
 attributes:
@@ -486,6 +492,11 @@ uid:
   returned: When O(uid) is passed to the module
   type: int
   sample: 1044
+rootdir:
+  description: chroot directory where to execute the pw command
+  returned: always
+  type: str
+  sample: '/usr/local/bastille/jails/jumper/root'
 """
 
 
@@ -1438,6 +1449,10 @@ class FreeBsdUser(User):
                 cmd.append(self.uid)
             return self.execute_command(cmd)
 
+        if self.rootdir is not None:
+            cmd.append(-R)
+            cmd.append(selr.rootdir)
+
         return (None, '', '')
 
     def remove_user(self):
@@ -1449,6 +1464,10 @@ class FreeBsdUser(User):
         ]
         if self.remove:
             cmd.append('-r')
+
+        if self.rootdir is not None:
+            cmd.append(-R)
+            cmd.append(selr.rootdir)
 
         return self.execute_command(cmd)
 
@@ -1519,6 +1538,10 @@ class FreeBsdUser(User):
         if self.uid_max is not None:
             cmd.append('-K')
             cmd.append('UID_MAX=' + str(self.uid_max))
+
+        if self.rootdir is not None:
+            cmd.append(-R)
+            cmd.append(selr.rootdir)
 
         # system cannot be handled currently - should we error if its requested?
         # create the user
@@ -1654,6 +1677,10 @@ class FreeBsdUser(User):
                 if current_expires <= 0 or current_expire_date[:3] != self.expires[:3]:
                     cmd.append('-e')
                     cmd.append(str(calendar.timegm(self.expires)))
+
+        if self.rootdir is not None:
+            cmd.append(-R)
+            cmd.append(selr.rootdir)
 
         (rc, out, err) = (None, '', '')
 

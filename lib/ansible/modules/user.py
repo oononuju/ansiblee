@@ -295,7 +295,7 @@ options:
         description:
             - chroot directory where to execute the pw command
             - Currently only supported on FreeBSD
-        type: int
+        type: str
         version_added: "2.18"
 
 extends_documentation_fragment: action_common_attributes

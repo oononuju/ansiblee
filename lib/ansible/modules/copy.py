@@ -584,7 +584,7 @@ def main():
 
     # Special handling for recursive copy - create intermediate dirs
     if dest.endswith(os.sep):
-        if _original_basename and not(remote_src and os.path.isdir(src)):
+        if _original_basename and not (remote_src and os.path.isdir(src)):
             dest = os.path.join(dest, _original_basename)
         b_dest = to_bytes(dest, errors='surrogate_or_strict')
         dirname = os.path.dirname(dest)
@@ -610,7 +610,7 @@ def main():
 
     if os.path.isdir(b_dest):
         basename = os.path.basename(src)
-        if _original_basename and not(remote_src and os.path.isdir(src)):
+        if _original_basename and not (remote_src and os.path.isdir(src)):
             basename = _original_basename
         dest = os.path.join(dest, basename)
         b_dest = to_bytes(dest, errors='surrogate_or_strict')

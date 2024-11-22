@@ -3331,6 +3331,7 @@ def main():
             password_expire_account_disable=dict(type='int', no_log=False),
             uid_min=dict(type='int'),
             uid_max=dict(type='int'),
+            rootdir=dict(type='str'),
         ),
         supports_check_mode=True,
     )

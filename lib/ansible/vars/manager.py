@@ -425,6 +425,10 @@ class VariableManager:
             if self._loader.get_basedir() not in all_vars['ansible_search_path']:
                 all_vars['ansible_search_path'].append(self._loader.get_basedir())
 
+        # loop vars :-|
+        if task and task.loop_vars:
+            all_vars = _combine_and_track(all_vars, task.loop_vars, "loop")
+
         # 'vars' magic var
         if task or play:
             # has to be copy, otherwise recursive ref

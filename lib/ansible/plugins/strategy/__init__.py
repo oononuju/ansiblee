@@ -595,6 +595,82 @@ class StrategyBase:
 
         return items
 
+    def _get_new_stuff(self, host, task, task_vars, play_context):
+        task = task.copy()
+
+        # FIXME ETOOMANYTEMPLARS
+        templar = Templar(loader=self._loader, variables=task_vars)
+        res = None
+
+        try:
+            delegated_vars, delegated_host_name = self._variable_manager.get_delegated_vars_and_hostname(templar, task, task_vars)
+
+            if delegated_host_name:
+                task.delegate_to = delegated_host_name
+                task_vars.update(delegated_vars)
+        except AnsibleError as e:
+            res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
+        else:
+            try:
+                try:
+                    play_context = play_context.set_task_and_variable_override(
+                        task=task,
+                        variables=task_vars,
+                        templar=templar,
+                    )
+                    play_context.post_validate(templar=templar)
+                    if not play_context.remote_addr:
+                        play_context.remote_addr = host.address
+                    play_context.update_vars(task_vars)
+                except AnsibleUndefinedVariable:
+                    # if we ran into an error while setting up the PlayContext, raise it now, unless is known issue with delegation
+                    # and undefined vars (correct values are in cvars later on and connection plugins, if still error, blows up there)
+                    if not task.delegate_to:
+                        raise
+                except AnsibleParserError as e:
+                    if not (
+                        task.delegate_to
+                        and (orig_exc := getattr(e, 'orig_exc', None))
+                        and isinstance(orig_exc, AnsibleUndefinedVariable)
+                    ):
+                        raise
+            except AnsibleError as e:
+                try:
+                    conditional_result, false_condition = task.evaluate_conditional_with_result(templar, task_vars)
+                    if not conditional_result:
+                        display.debug("when evaluation is False, skipping this task")
+                        res = dict(
+                            changed=False,
+                            skipped=True,
+                            skip_reason='Conditional result was False',
+                            false_condition=false_condition,
+                            ansible_no_log=templar.template(task.no_log),  # FIXME
+                        )
+                    else:
+                        res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
+                except AnsibleError as e:
+                    res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
+
+        if res:
+            self._queued_task_cache[(host.name, task._uuid, task.loop_idx)] = {
+                'host': host,
+                'task': task,
+                'task_vars': task_vars,
+                'play_context': play_context
+            }
+            # FIXME callback sent?
+            if isinstance(task, Handler):
+                self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
+            else:
+                self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
+            self._tqm.send_callback('v2_runner_on_start', host, task)
+            self._pending_results += 1
+            with self._results_lock:
+                self._results.append(TaskResult(host, task, res))
+            raise ValueError
+
+        return task, play_context
+
     def _unroll_loop(self, host, task, task_vars, play_context, iterator):
         templar = Templar(self._loader, variables=task_vars)
         res = None
@@ -613,9 +689,9 @@ class StrategyBase:
                     ansible_no_log=templar.template(task.no_log),  # FIXME
                 )
             else:
-                res = dict(failed=True, msg=str(ex))
+                res = dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')))
         except AnsibleError as ex:
-            res = dict(failed=True, msg=str(ex))
+            res = dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')))
 
         self._queued_task_cache[(host.name, task._uuid, None)] = {
             'host': host,
@@ -687,7 +763,7 @@ class StrategyBase:
             loop_task._parent = task._parent
             loop_task.loop = loop_task.loop_with = None
             loop_task.loop_control = task_copy.loop_control
-            loop_task.vars = combine_vars(loop_task.vars or {}, item_vars)
+            loop_task.loop_vars = item_vars
             loop_task.loop_idx = item_index
             loop_tasks.append(loop_task)
 

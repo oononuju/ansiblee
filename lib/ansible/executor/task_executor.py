@@ -21,7 +21,6 @@ from ansible.module_utils.parsing.convert_bool import boolean
 from ansible.module_utils.six import binary_type
 from ansible.module_utils.common.text.converters import to_text, to_native
 from ansible.module_utils.connection import write_to_stream
-from ansible.module_utils.six import string_types
 from ansible.playbook.conditional import Conditional
 from ansible.playbook.task import Task
 from ansible.plugins import get_plugin_class
@@ -212,89 +211,23 @@ class TaskExecutor:
             except Exception as e:
                 display.debug(u"error closing connection: %s" % to_text(e))
 
-    def _calculate_delegate_to(self, templar, variables):
-        """This method is responsible for effectively pre-validating Task.delegate_to and will
-        happen before Task.post_validate is executed
-        """
-        delegated_vars, delegated_host_name = self._variable_manager.get_delegated_vars_and_hostname(templar, self._task, variables)
-        # At the point this is executed it is safe to mutate self._task,
-        # since `self._task` is either a copy referred to by `tmp_task` in `_run_loop`
-        # or just a singular non-looped task
-        if delegated_host_name:
-            self._task.delegate_to = delegated_host_name
-            variables.update(delegated_vars)
-
-    def _execute(self, variables=None):
+    def _execute(self):
         """
         The primary workhorse of the executor system, this runs the task
         on the specified host (which may be the delegated_to host) and handles
         the retry/until and block rescue/always execution
         """
-
-        if variables is None:
-            variables = self._job_vars
+        variables = self._job_vars
 
         templar = Templar(loader=self._loader, variables=variables)
 
-        self._calculate_delegate_to(templar, variables)
-
-        context_validation_error = None
-
-        # a certain subset of variables exist.
-        tempvars = variables.copy()
-
-        try:
-            # TODO: remove play_context as this does not take delegation nor loops correctly into account,
-            # the task itself should hold the correct values for connection/shell/become/terminal plugin options to finalize.
-            #  Kept for now for backwards compatibility and a few functions that are still exclusive to it.
-
-            # apply the given task's information to the connection info,
-            # which may override some fields already set by the play or
-            # the options specified on the command line
-            self._play_context = self._play_context.set_task_and_variable_override(task=self._task, variables=variables, templar=templar)
-
-            # fields set from the play/task may be based on variables, so we have to
-            # do the same kind of post validation step on it here before we use it.
-            self._play_context.post_validate(templar=templar)
-
-            # now that the play context is finalized, if the remote_addr is not set
-            # default to using the host's address field as the remote address
-            if not self._play_context.remote_addr:
-                self._play_context.remote_addr = self._host.address
-
-            # We also add "magic" variables back into the variables dict to make sure
-            self._play_context.update_vars(tempvars)
-
-        except AnsibleError as e:
-            # save the error, which we'll raise later if we don't end up
-            # skipping this task during the conditional evaluation step
-            context_validation_error = e
-
         no_log = self._play_context.no_log
 
-        conditional_result, false_condition = self._task.evaluate_conditional_with_result(templar, tempvars)
+        conditional_result, false_condition = self._task.evaluate_conditional_with_result(templar, variables)
         if not conditional_result:
             display.debug("when evaluation is False, skipping this task")
             return dict(changed=False, skipped=True, skip_reason='Conditional result was False',
                         false_condition=false_condition, _ansible_no_log=no_log)
-
-        # if we ran into an error while setting up the PlayContext, raise it now, unless is known issue with delegation
-        # and undefined vars (correct values are in cvars later on and connection plugins, if still error, blows up there)
-        if context_validation_error is not None:
-            raiseit = True
-            if self._task.delegate_to:
-                if isinstance(context_validation_error, AnsibleUndefinedVariable):
-                    raiseit = False
-                elif isinstance(context_validation_error, AnsibleParserError):
-                    # parser error, might be cause by undef too
-                    orig_exc = getattr(context_validation_error, 'orig_exc', None)
-                    if isinstance(orig_exc, AnsibleUndefinedVariable):
-                        raiseit = False
-            if raiseit:
-                raise context_validation_error  # pylint: disable=raising-bad-type
-
-        # set templar to use temp variables until loop is evaluated
-        templar.available_variables = tempvars
 
         # if this task is a TaskInclude, we just return now with a success code so the
         # main thread can expand the task list for the given host
@@ -319,8 +252,8 @@ class TaskExecutor:
             raise
         except Exception:
             return dict(changed=False, failed=True, _ansible_no_log=no_log, exception=to_text(traceback.format_exc()))
-        if '_variable_params' in self._task.args:
-            variable_params = self._task.args.pop('_variable_params')
+
+        if variable_params := self._task.args.pop('_variable_params', None):
             if isinstance(variable_params, dict):
                 if C.INJECT_FACTS_AS_VARS:
                     display.warning("Using a variable for a task's 'args' is unsafe in some situations "
@@ -334,10 +267,6 @@ class TaskExecutor:
 
         # update no_log to task value, now that we have it templated
         no_log = self._task.no_log
-
-        # free tempvars up, not used anymore, cvars and vars_copy should be mainly used after this point
-        # updating the original 'variables' at the end
-        tempvars = {}
 
         # setup cvars copy, used for all connection related templating
         if self._task.delegate_to:

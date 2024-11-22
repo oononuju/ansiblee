@@ -1451,8 +1451,8 @@ class FreeBsdUser(User):
             return self.execute_command(cmd)
 
         if self.rootdir is not None:
-            cmd.append(-R)
-            cmd.append(selr.rootdir)
+            cmd.append('-R')
+            cmd.append(self.rootdir)
 
         return (None, '', '')
 
@@ -1467,8 +1467,8 @@ class FreeBsdUser(User):
             cmd.append('-r')
 
         if self.rootdir is not None:
-            cmd.append(-R)
-            cmd.append(selr.rootdir)
+            cmd.append('-R')
+            cmd.append(self.rootdir)
 
         return self.execute_command(cmd)
 
@@ -1541,8 +1541,8 @@ class FreeBsdUser(User):
             cmd.append('UID_MAX=' + str(self.uid_max))
 
         if self.rootdir is not None:
-            cmd.append(-R)
-            cmd.append(selr.rootdir)
+            cmd.append('-R')
+            cmd.append(self.rootdir)
 
         # system cannot be handled currently - should we error if its requested?
         # create the user
@@ -1680,8 +1680,8 @@ class FreeBsdUser(User):
                     cmd.append(str(calendar.timegm(self.expires)))
 
         if self.rootdir is not None:
-            cmd.append(-R)
-            cmd.append(selr.rootdir)
+            cmd.append('-R')
+            cmd.append(self.rootdir)
 
         (rc, out, err) = (None, '', '')
 

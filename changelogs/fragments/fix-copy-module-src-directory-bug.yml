@@ -1,0 +1,3 @@
+bugfixes:
+  - Fix copy module bug when remote_src is True and src is directory
+  - Fix a display.debug statement with the wrong param in _get_diff_data() method

@@ -295,7 +295,7 @@ import stat
 import tempfile
 import traceback
 
-from ansible.module_utils.common.text.converters import to_bytes, to_native
+from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
 from ansible.module_utils.basic import AnsibleModule
 
 
@@ -572,6 +572,8 @@ def main():
             pass
     elif remote_src and not os.path.isdir(src):
         module.fail_json("Cannot copy invalid source '%s': not a file" % to_native(src))
+    elif remote_src and os.path.isdir(src) and _original_basename:
+        module.warn("When remote_src is True and source is a directory, _original_basename is meaningless")
 
     if checksum and checksum_src != checksum:
         module.fail_json(
@@ -582,7 +584,7 @@ def main():
 
     # Special handling for recursive copy - create intermediate dirs
     if dest.endswith(os.sep):
-        if _original_basename:
+        if _original_basename and not(remote_src and os.path.isdir(src)):
             dest = os.path.join(dest, _original_basename)
         b_dest = to_bytes(dest, errors='surrogate_or_strict')
         dirname = os.path.dirname(dest)
@@ -608,7 +610,7 @@ def main():
 
     if os.path.isdir(b_dest):
         basename = os.path.basename(src)
-        if _original_basename:
+        if _original_basename and not(remote_src and os.path.isdir(src)):
             basename = _original_basename
         dest = os.path.join(dest, basename)
         b_dest = to_bytes(dest, errors='surrogate_or_strict')
@@ -739,6 +741,9 @@ def main():
                     owner_group_changed = chown_recursive(b_dest, module)
                 if module.check_mode and not os.path.exists(b_dest):
                     changed = True
+
+            # update new dest
+            dest = to_text(b_dest)
 
     res_args = dict(
         dest=dest, src=src, md5sum=md5sum_src, checksum=checksum_src, changed=changed

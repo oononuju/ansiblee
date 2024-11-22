@@ -1,0 +1,63 @@
+- name: generate random string
+  set_fact:
+    rn: "{{ 32 | random | to_uuid | lower }}"
+
+- name: create src directory
+  file:
+    path: "tmp-src-{{ rn }}"
+    state: directory
+
+- name: dest directory
+  set_fact:
+    dest_dir: "tmp-dest-{{ rn }}/tmp-src-{{ rn }}"
+
+- name: another dest directory
+  set_fact:
+    dest_dir2: "./tmp-dest-{{ rn }}/tmp-src-{{ rn }}"
+
+- name: create dest directory
+  file:
+    path: "tmp-dest-{{ rn }}"
+    state: directory
+
+- name: create xxx file
+  file:
+    path: "tmp-dest-{{ rn }}/xxx"
+    state: touch
+
+- name: fix copy module run bug
+  copy:
+    src: "tmp-src-{{ rn }}"
+    dest: "tmp-dest-{{ rn }}"
+    remote_src: yes
+    _original_basename: xxx
+  register: copy_result
+
+- name: assert copy worked
+  assert:
+    that:
+      - 'copy_result is successful'
+      - 'copy_result is changed'
+
+- name: fix copy module output bug
+  copy:
+    src: "tmp-src-{{ rn }}"
+    dest: "tmp-dest-{{ rn }}"
+    remote_src: yes
+    _original_basename: yyy
+  register: output_result
+
+- name: assert copy output dest worked
+  assert:
+    that:
+      - output_result.dest == dest_dir or output_result.dest == dest_dir2
+
+- name: clean src directories
+  file:
+    path: "tmp-src-{{ rn }}"
+    state: absent
+         
+- name: clean dest directories
+  file:
+    path: "tmp-dest-{{ rn }}"
+    state: absent

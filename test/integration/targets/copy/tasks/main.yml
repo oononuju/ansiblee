@@ -91,6 +91,10 @@
 
     - import_tasks: check_mode.yml
 
+    # https://github.com/ansible/ansible/issues/84367
+    - import_tasks: src_and_dest_dir_with_original_basename.yml
+      delegate_to: localhost
+
     # https://github.com/ansible/ansible/issues/57618
     # https://github.com/ansible/ansible/issues/79749
     - name: Test diff contents

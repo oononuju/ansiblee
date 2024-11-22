@@ -625,7 +625,7 @@ class User(object):
         self.inactive = module.params['password_expire_account_disable']
         self.uid_min = module.params['uid_min']
         self.uid_max = module.params['uid_max']
-        self.rootdir = None
+        self.rootdir = module.params['rootdir']
 
         if self.local:
             if self.umask is not None:
@@ -1429,40 +1429,46 @@ class FreeBsdUser(User):
 
     def _handle_lock(self):
         info = self.user_info()
+
+        cmd = [ self.module.get_bin_path('pw', True)]
+        if self.rootdir is not None:
+            cmd.append('-R')
+            cmd.append(self.rootdir)
+        
         if self.password_lock and not info[1].startswith('*LOCKED*'):
-            cmd = [
-                self.module.get_bin_path('pw', True),
+            cmd.extend([
                 'lock',
                 self.name
-            ]
+            ])
             if self.uid is not None and info[2] != int(self.uid):
                 cmd.append('-u')
                 cmd.append(self.uid)
             return self.execute_command(cmd)
         elif self.password_lock is False and info[1].startswith('*LOCKED*'):
-            cmd = [
-                self.module.get_bin_path('pw', True),
-                'unlock',
+            cmd.extend([
+                'lock',
                 self.name
-            ]
+            ])
             if self.uid is not None and info[2] != int(self.uid):
                 cmd.append('-u')
                 cmd.append(self.uid)
             return self.execute_command(cmd)
 
+        return (None, '', '')
+
+    def remove_user(self):
+        cmd = [ self.module.get_bin_path('pw', True)]
+
         if self.rootdir is not None:
             cmd.append('-R')
             cmd.append(self.rootdir)
 
-        return (None, '', '')
-
-    def remove_user(self):
-        cmd = [
-            self.module.get_bin_path('pw', True),
+        cmd.extend([
             'userdel',
             '-n',
-            self.name
-        ]
+            self.name,
+        ])
+
         if self.remove:
             cmd.append('-r')
 
@@ -1473,12 +1479,17 @@ class FreeBsdUser(User):
         return self.execute_command(cmd)
 
     def create_user(self):
-        cmd = [
-            self.module.get_bin_path('pw', True),
+        cmd = [ self.module.get_bin_path('pw', True)]
+
+        if self.rootdir is not None:
+            cmd.append('-R')
+            cmd.append(self.rootdir)
+
+        cmd.extend([
             'useradd',
             '-n',
             self.name,
-        ]
+        ])
 
         if self.uid is not None:
             cmd.append('-u')
@@ -1540,9 +1551,6 @@ class FreeBsdUser(User):
             cmd.append('-K')
             cmd.append('UID_MAX=' + str(self.uid_max))
 
-        if self.rootdir is not None:
-            cmd.append('-R')
-            cmd.append(self.rootdir)
 
         # system cannot be handled currently - should we error if its requested?
         # create the user
@@ -1575,12 +1583,17 @@ class FreeBsdUser(User):
         return (rc, out, err)
 
     def modify_user(self):
-        cmd = [
-            self.module.get_bin_path('pw', True),
+        cmd = [ self.module.get_bin_path('pw', True)]
+
+        if self.rootdir is not None:
+            cmd.append('-R')
+            cmd.append(self.rootdir)
+
+        cmd.extend([
             'usermod',
             '-n',
-            self.name
-        ]
+            self.name,
+        ])
         cmd_len = len(cmd)
         info = self.user_info()
 
@@ -1678,10 +1691,6 @@ class FreeBsdUser(User):
                 if current_expires <= 0 or current_expire_date[:3] != self.expires[:3]:
                     cmd.append('-e')
                     cmd.append(str(calendar.timegm(self.expires)))
-
-        if self.rootdir is not None:
-            cmd.append('-R')
-            cmd.append(self.rootdir)
 
         (rc, out, err) = (None, '', '')
 

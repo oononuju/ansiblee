@@ -27,7 +27,14 @@ class Git:
     def get_diff_names(self, args: list[str]) -> list[str]:
         """Return a list of file names from the `git diff` command."""
         cmd = ['diff', '--name-only', '--no-renames', '-z'] + args
-        return self.run_git_split(cmd, '\0')
+
+        try:
+            return self.run_git_split(cmd, '\0')
+        except SubprocessError as git_diff_proc_err:
+            raise LookupError(
+                'Failed to retrieve files differing between Git refs: '
+                f'{git_diff_proc_err !s}',
+            ) from git_diff_proc_err
 
     def get_submodule_paths(self) -> list[str]:
         """Return a list of submodule paths recursively."""

@@ -212,13 +212,95 @@ class AzurePipelinesChanges:
             # <commit>...<commit>
             # This form is to view the changes on the branch containing and up to the second <commit>, starting at a common ancestor of both <commit>.
             # see: https://git-scm.com/docs/git-diff
-            dot_range = '%s...%s' % (self.base_commit, self.commit)
-
-            self.paths = sorted(self.git.get_diff_names([dot_range]))
-            self.diff = self.git.get_diff([dot_range])
+            self.paths = sorted(self.get_changed_paths())
+            self.diff = self.git.get_diff([self.dot_range])
         else:
             self.paths = None  # act as though change detection not enabled, do not filter targets
             self.diff = []
+
+    @property
+    def dot_range(self) -> str:
+        """Return a three-dot commit range between base and target."""
+        return f'{self.base_commit !s}...{self.commit !s}'
+
+    def fetch_common_ancestor_commit(self) -> None:
+        """Augment the Git tree parts needed to reach the merge base."""
+        # This is achieved by doing the following:
+        # 1. Fetch one additional commit at the root of each orphaned
+        #    branch.
+        # 2. Identify said commits as tree roots or "grafted".
+        # 3. Retrieve the timestamps of both and safe the oldest one.
+        # 4. Fetch again, now instructing Git to include everything past
+        #    this date.
+        #
+        # The idea is that the very first commit in the PR branch might
+        # be created on the same day as the PR is opened. However, its
+        # parent would belong to the base branch, which is immutable. So
+        # if we take that commit's time stamp, we can tell Git to fill
+        # in the commits between the PR branch chunk and the commit it
+        # branched out of (the fork point). We'll also fill in the
+        # commits on the other side of the "fork", in the base branch.
+        # With those commits retrieved and available in the local cache
+        # of the remote, it will be possible for git diff to locate the
+        # merge base and compute the file list, while the tree remains
+        # shallow. This is still a heuristic, of course, since the
+        # commit dates can be out of order in the tree. But it's not
+        # expected that we'll hit this corner case often or ever.
+        display.info(
+            'Attempting to fetch parts of Git tree '
+            'making the branch fork point reachable...',
+        )
+
+        self.git.run_git(
+            [
+                'fetch',
+                '--deepen=1',
+                '--no-tags',
+                'origin',
+                self.base_commit,
+                self.commit,
+            ],
+        )
+
+        grafted_commits = self.git.run_git_split(
+            [
+                'rev-list',
+                '--reflog',
+                '--max-parents=0',  # filter to "root" / "grafted" commits
+                '--reverse',  # oldest first
+                f'{self.base_commit}^',  # "base shallow parent"
+                f'{self.commit}^',  # PR "parent" commit
+            ],
+        )
+        oldest_required_parent_sha = grafted_commits[0]
+
+        fork_point_timestamp = self.git.run_git(
+            [
+                'show',
+                '--format=%at',
+                '--no-patch',
+                oldest_required_parent_sha,
+            ],
+        ).strip()
+
+        self.git.run_git(
+            [
+                'fetch',
+                f'--shallow-since="{fork_point_timestamp}"',
+                'origin',
+                self.base_commit,
+                self.commit,
+            ],
+        )
+
+    def get_changed_paths(self) -> list[str]:
+        """Identify files changed in base or target since fork."""
+        try:
+            return self.git.get_diff_names([self.dot_range])
+        except LookupError as lookup_err:
+            display.notice(f'{lookup_err !s}')
+            self.fetch_common_ancestor_commit()
+            return self.git.get_diff_names([self.dot_range])
 
     def get_successful_merge_run_commits(self) -> set[str]:
         """Return a set of recent successful merge commits from Azure Pipelines."""

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 
 DOCUMENTATION = r"""
-module: user
+module: freebsduser
 version_added: "0.2"
 short_description: Manage user accounts
 description:

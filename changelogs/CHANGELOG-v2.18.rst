@@ -4,6 +4,34 @@ ansible-core 2.18 "Fool in the Rain" Release Notes
 
 .. contents:: Topics
 
+v2.18.1rc1
+==========
+
+Release Summary
+---------------
+
+| Release Date: 2024-11-25
+| `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
+
+Minor Changes
+-------------
+
+- ansible-test - When detection of the current container network fails, a warning is now issued and execution continues. This simplifies usage in cases where the current container cannot be inspected, such as when running in GitHub Codespaces.
+
+Security Fixes
+--------------
+
+- Templating will not prefer AnsibleUnsafe when a variable is referenced via hostvars - CVE-2024-11079
+
+Bugfixes
+--------
+
+- Fix returning 'unreachable' for the overall task result. This prevents false positives when a looped task has unignored unreachable items (https://github.com/ansible/ansible/issues/84019).
+- ansible-test - Fix traceback that occurs after an interactive command fails.
+- dnf5 - fix installing a package using ``state=latest`` when a binary of the same name as the package is already installed (https://github.com/ansible/ansible/issues/84259)
+- dnf5 - matching on a binary can be achieved only by specifying a full path (https://github.com/ansible/ansible/issues/84334)
+- runas become - Fix up become logic to still get the SYSTEM token with the most privileges when running as SYSTEM.
+
 v2.18.0
 =======
 

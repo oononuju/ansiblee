@@ -142,13 +142,13 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
         try:
             os.setsid()
             # Create new fds for stdin/stdout/stderr, but also capture python uses of sys.stdout/stderr
-            for fd, mode in (
-                    (STDIN_FILENO, os.O_RDWR | os.O_NONBLOCK),
-                    (STDOUT_FILENO, os.O_WRONLY),
-                    (STDERR_FILENO, os.O_WRONLY)
+            for fds, mode in (
+                    ((STDIN_FILENO,), os.O_RDWR | os.O_NONBLOCK),
+                    ((STDOUT_FILENO, STDERR_FILENO), os.O_WRONLY),
             ):
                 stdio = os.open(os.devnull, mode)
-                os.dup2(stdio, fd)
+                for fd in fds:
+                    os.dup2(stdio, fd)
                 os.close(stdio)
             sys.stdout = io.StringIO()
             sys.stderr = io.StringIO()

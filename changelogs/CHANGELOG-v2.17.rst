@@ -4,6 +4,33 @@ ansible-core 2.17 "Gallows Pole" Release Notes
 
 .. contents:: Topics
 
+v2.17.7rc1
+==========
+
+Release Summary
+---------------
+
+| Release Date: 2024-11-25
+| `Porting Guide <https://docs.ansible.com/ansible-core/2.17/porting_guides/porting_guide_core_2.17.html>`__
+
+Minor Changes
+-------------
+
+- remove extraneous selinux import (https://github.com/ansible/ansible/issues/83657).
+
+Security Fixes
+--------------
+
+- Templating will not prefer AnsibleUnsafe when a variable is referenced via hostvars - CVE-2024-11079
+
+Bugfixes
+--------
+
+- Fix returning 'unreachable' for the overall task result. This prevents false positives when a looped task has unignored unreachable items (https://github.com/ansible/ansible/issues/84019).
+- ansible-test - Fix traceback that occurs after an interactive command fails.
+- dnf5 - fix installing a package using ``state=latest`` when a binary of the same name as the package is already installed (https://github.com/ansible/ansible/issues/84259)
+- dnf5 - matching on a binary can be achieved only by specifying a full path (https://github.com/ansible/ansible/issues/84334)
+
 v2.17.6
 =======
 

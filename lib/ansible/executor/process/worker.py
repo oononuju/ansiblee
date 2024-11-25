@@ -69,6 +69,7 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
 
     def __init__(
             self,
+            *,
             final_q: FinalQueue,
             task_vars: dict,
             host: Host,

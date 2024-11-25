@@ -368,7 +368,7 @@ from ansible.module_utils.yumdnf import YumDnf, yumdnf_argument_spec
 libdnf5 = None
 
 
-def is_installed(base, spec):
+def get_resolve_spec_settings():
     settings = libdnf5.base.ResolveSpecSettings()
     try:
         settings.set_group_with_name(True)
@@ -384,6 +384,11 @@ def is_installed(base, spec):
         # dnf5 < 5.2.0.0
         settings.group_with_name = True
         settings.with_binaries = False
+    return settings
+
+
+def is_installed(base, spec):
+    settings = get_resolve_spec_settings()
 
     installed_query = libdnf5.rpm.PackageQuery(base)
     installed_query.filter_installed()
@@ -398,7 +403,7 @@ def is_newer_version_installed(base, spec):
         if spec.endswith(".rpm"):
             spec = spec[:-4]
 
-    settings = libdnf5.base.ResolveSpecSettings()
+    settings = get_resolve_spec_settings()
     match, spec_nevra = libdnf5.rpm.PackageQuery(base).resolve_pkg_spec(spec, settings, True)
     if not match or spec_nevra.has_just_name():
         return False

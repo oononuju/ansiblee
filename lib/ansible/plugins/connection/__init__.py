@@ -34,6 +34,11 @@ BUFSIZE = 65536
 P = t.ParamSpec('P')
 T = t.TypeVar('T')
 
+class ConnectionKwargs(t.TypedDict):
+    task_uuid: str
+    ansible_playbook_pid: str
+    shell: t.NotRequired[ShellBase]
+
 
 def ensure_connect(
     func: c.Callable[t.Concatenate[ConnectionBase, P], T],
@@ -72,8 +77,7 @@ class ConnectionBase(AnsiblePlugin):
         self,
         play_context: PlayContext,
         *args: t.Any,
-        shell: ShellBase | None = None,
-        **kwargs: t.Any,
+        **kwargs: t.Unpack[ConnectionKwargs],
     ) -> None:
 
         super(ConnectionBase, self).__init__()
@@ -91,13 +95,11 @@ class ConnectionBase(AnsiblePlugin):
         self._connected = False
         self._socket_path: str | None = None
 
-        # helper plugins
-        self._shell = shell
-
         # we always must have shell
-        if not self._shell:
+        if not (shell := kwargs.get('shell')):
             shell_type = play_context.shell if play_context.shell else getattr(self, '_shell_type', None)
-            self._shell = get_shell_plugin(shell_type=shell_type, executable=self._play_context.executable)
+            shell = get_shell_plugin(shell_type=shell_type, executable=self._play_context.executable)
+        self._shell = shell
 
         self.become: BecomeBase | None = None
 

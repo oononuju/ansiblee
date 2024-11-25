@@ -5,6 +5,26 @@ ansible-core 2.16 "All My Love" Release Notes
 .. contents:: Topics
 
 
+v2.16.14rc1
+===========
+
+Release Summary
+---------------
+
+| Release Date: 2024-11-25
+| `Porting Guide <https://docs.ansible.com/ansible-core/2.16/porting_guides/porting_guide_core_2.16.html>`__
+
+
+Security Fixes
+--------------
+
+- Templating will not prefer AnsibleUnsafe when a variable is referenced via hostvars - CVE-2024-11079
+
+Bugfixes
+--------
+
+- ansible-test - Fix traceback that occurs after an interactive command fails.
+
 v2.16.13
 ========
 

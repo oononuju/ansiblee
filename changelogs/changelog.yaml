@@ -953,6 +953,24 @@ releases:
     - skip-implicit-flush_handlers-no-notify.yml
     - user_ssh_fix.yml
     release_date: '2024-10-29'
+  2.16.14rc1:
+    changes:
+      bugfixes:
+      - ansible-test - Fix traceback that occurs after an interactive command fails.
+      release_summary: '| Release Date: 2024-11-25
+
+        | `Porting Guide <https://docs.ansible.com/ansible-core/2.16/porting_guides/porting_guide_core_2.16.html>`__
+
+        '
+      security_fixes:
+      - Templating will not prefer AnsibleUnsafe when a variable is referenced via
+        hostvars - CVE-2024-11079
+    codename: All My Love
+    fragments:
+    - 2.16.14rc1_summary.yaml
+    - ansible-test-fix-command-traceback.yml
+    - unsafe_hostvars_fix.yml
+    release_date: '2024-11-25'
   2.16.1rc1:
     changes:
       breaking_changes:

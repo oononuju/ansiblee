@@ -138,9 +138,6 @@ class LookupModule(LookupBase):
         if (ptype or pname) and not (ptype and pname):
             raise AnsibleOptionsError('Both plugin_type and plugin_name are required, cannot use one without the other')
 
-        if not isinstance(missing, string_types) or missing not in ['error', 'warn', 'skip']:
-            raise AnsibleOptionsError('"on_missing" must be a string and one of "error", "warn" or "skip", not %s' % missing)
-
         ret = []
 
         for term in terms:
@@ -159,7 +156,7 @@ class LookupModule(LookupBase):
                     raise AnsibleLookupError('Unable to find setting %s' % term, orig_exc=e)
                 elif missing == 'warn':
                     self._display.warning('Skipping, did not find setting %s' % term)
-                elif missing == 'skip':
+                else:
                     pass  # this is not needed, but added to have all 3 options stated
 
             if result is not Sentinel:

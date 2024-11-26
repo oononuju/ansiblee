@@ -174,6 +174,7 @@ class StrategyModule(StrategyBase):
                                                 "executed for every host in the inventory list.")
                         new_task = task
                         new_play_context = play_context
+                        callback_sent = False
                         try:
                             if task.loop is not None or task.loop_with is not None:
                                 self._unroll_loop(host, task, task_vars, play_context, iterator)
@@ -182,7 +183,7 @@ class StrategyModule(StrategyBase):
 
                             new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
 
-                            if new_task.action in C._ACTION_META:
+                            if task.action in C._ACTION_META:
                                 if self._host_pinned:
                                     meta_task_dummy_results_count += 1
                                     workers_free -= 1
@@ -211,13 +212,29 @@ class StrategyModule(StrategyBase):
                                                  false_condition=false_condition, _ansible_no_log=new_play_context.no_log)
                                         )
                                     else:
-                                        self._queue_task(host, new_task, task_vars, new_play_context)
+                                        if task.action in C._ACTION_INCLUDE_TASKS:
+                                            include_args = new_task.args.copy()
+                                            include_file = include_args.pop('_raw_params', None)
+                                            if not include_file:
+                                                raise AnsibleSendControllerTaskResult(
+                                                    dict(changed=False, failed=True, msg="No include file was specified to the include"))
+
+                                            include_file = templar.template(include_file)
+                                            callback_sent = True
+                                            raise AnsibleSendControllerTaskResult(
+                                                dict(changed=False, include=include_file, include_args=include_args))
+                                        elif task.action in C._ACTION_INCLUDE_ROLE:
+                                            include_args = new_task.args.copy()
+                                            callback_sent = True
+                                            raise AnsibleSendControllerTaskResult(dict(changed=False, include_args=include_args))
+                                        else:
+                                            self._queue_task(host, new_task, task_vars, new_play_context)
                                         # each task is counted as a worker being busy
                                         workers_free -= 1
                                 del task_vars
                         except AnsibleSendControllerTaskResult as e:
                             workers_free -= 1
-                            self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
+                            self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context, callback_sent)
                     else:
                         display.debug("%s is blocked, skipping for now" % host_name)
 

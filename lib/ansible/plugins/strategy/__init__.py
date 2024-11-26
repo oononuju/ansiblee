@@ -793,17 +793,18 @@ class StrategyBase:
         # FIXME weird return value
         return res, ignore_errors, ignore_unreachable
 
-    def _send_controller_task_result(self, result, host, task, task_vars, play_context):
+    def _send_controller_task_result(self, result, host, task, task_vars, play_context, callback_sent=False):
         self._queued_task_cache[(host.name, task._uuid, task.loop_idx)] = {
             'host': host,
             'task': task,
             'task_vars': task_vars,
             'play_context': play_context,
         }
-        if isinstance(task, Handler):
-            self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
-        else:
-            self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
+        if not callback_sent:
+            if isinstance(task, Handler):
+                self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
+            else:
+                self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
         self._tqm.send_callback('v2_runner_on_start', host, task)
         self._pending_results += 1
         res = result.copy()

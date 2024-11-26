@@ -212,10 +212,24 @@ class StrategyModule(StrategyBase):
                                         self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
                                     callback_sent = True
                                 self._blocked_hosts[host.get_name()] = True
-                                self._queue_task(host, new_task, task_vars, new_play_context)
+                                if task_action in C._ACTION_INCLUDE_TASKS:
+                                    include_args = new_task.args.copy()
+                                    include_file = include_args.pop('_raw_params', None)
+                                    if not include_file:
+                                        raise AnsibleSendControllerTaskResult(
+                                            dict(changed=False, failed=True, msg="No include file was specified to the include")
+                                        )
+
+                                    include_file = templar.template(include_file)
+                                    raise AnsibleSendControllerTaskResult(
+                                        dict(changed=False, include=include_file, include_args=include_args))
+                                elif task_action in C._ACTION_INCLUDE_ROLE:
+                                    include_args = new_task.args.copy()
+                                    raise AnsibleSendControllerTaskResult(dict(changed=False, include_args=include_args))
+                                else:
+                                    self._queue_task(host, new_task, task_vars, new_play_context)
                     except AnsibleSendControllerTaskResult as e:
-                        # FIXME callback_sent
-                        self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
+                        self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context, callback_sent)
 
                     del task_vars
 

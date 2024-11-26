@@ -30,7 +30,9 @@ DOCUMENTATION = """
 """
 
 from ansible import constants as C
-from ansible.errors import AnsibleError, AnsibleAssertionError, AnsibleParserError, AnsibleUndefinedVariable
+from ansible.errors import AnsibleError, AnsibleAssertionError, AnsibleParserError, AnsibleSendControllerTaskResult, \
+    AnsibleUndefinedVariable
+from ansible.executor.task_result import TaskResult
 from ansible.module_utils.common.text.converters import to_text
 from ansible.playbook.handler import Handler
 from ansible.playbook.included_file import IncludedFile
@@ -38,6 +40,7 @@ from ansible.plugins.loader import action_loader
 from ansible.plugins.strategy import StrategyBase
 from ansible.template import Templar
 from ansible.utils.display import Display
+from ansible.utils.unsafe_proxy import wrap_var
 
 display = Display()
 
@@ -142,17 +145,15 @@ class StrategyModule(StrategyBase):
                     self.add_tqm_variables(task_vars, play=iterator._play)
                     templar = Templar(loader=self._loader, variables=task_vars)
                     display.debug("done getting variables")
-
-                    if task.loop is not None or task.loop_with is not None:
-                        self._unroll_loop(host, task, task_vars, play_context, iterator)
-                    else:
-                        try:
-                            new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
-                        except ValueError:
-                            # FIXME
-                            # result already sent
-                            # FIXME run_once?
+                    new_task = task
+                    new_play_context = play_context
+                    try:
+                        if task.loop is not None or task.loop_with is not None:
+                            self._unroll_loop(host, task, task_vars, play_context, iterator)
+                            # looped tasks generated, skip to another host, or to generated tasks
                             continue
+
+                        new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
 
                         # test to see if the task across all hosts points to an action plugin which
                         # sets BYPASS_HOST_LOOP to true, or if it has run_once enabled. If so, we
@@ -193,16 +194,30 @@ class StrategyModule(StrategyBase):
                             if (new_task.any_errors_fatal or run_once) and not new_task.ignore_errors:
                                 any_errors_fatal = True
 
-                            if not callback_sent:
-                                if isinstance(new_task, Handler):
-                                    self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
-                                else:
-                                    self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
-                                callback_sent = True
+                            try:
+                                conditional_result, false_condition = new_task.evaluate_conditional_with_result(templar, task_vars)
+                            except AnsibleError as ex:
+                                raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
+                            if not conditional_result:
+                                display.debug("when evaluation is False, skipping this task")
+                                raise AnsibleSendControllerTaskResult(
+                                    dict(changed=False, skipped=True, skip_reason='Conditional result was False',
+                                           false_condition=false_condition, _ansible_no_log=new_play_context.no_log)
+                                )
+                            else:
+                                if not callback_sent:
+                                    if isinstance(new_task, Handler):
+                                        self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
+                                    else:
+                                        self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
+                                    callback_sent = True
+                                self._blocked_hosts[host.get_name()] = True
+                                self._queue_task(host, new_task, task_vars, new_play_context)
+                    except AnsibleSendControllerTaskResult as e:
+                        # FIXME callback_sent
+                        self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
 
-                            self._blocked_hosts[host.get_name()] = True
-                            self._queue_task(host, new_task, task_vars, new_play_context)
-                            del task_vars
+                    del task_vars
 
                     # FIXME the original task (Handler) stores the notified_hosts, NOT new_task :-|
                     if isinstance(task, Handler):

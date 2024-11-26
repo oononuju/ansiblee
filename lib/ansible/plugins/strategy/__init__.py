@@ -34,7 +34,8 @@ from jinja2.exceptions import UndefinedError
 
 from ansible import constants as C
 from ansible import context
-from ansible.errors import AnsibleError, AnsibleFileNotFound, AnsibleUndefinedVariable, AnsibleParserError
+from ansible.errors import AnsibleError, AnsibleFileNotFound, AnsibleUndefinedVariable, AnsibleParserError, \
+    AnsibleSendControllerTaskResult
 from ansible.executor import action_write_locks
 from ansible.executor.play_iterator import IteratingStates, PlayIterator
 from ansible.executor.process.worker import WorkerProcess
@@ -55,7 +56,7 @@ from ansible.utils.display import Display
 from ansible.utils.fqcn import add_internal_fqcns
 from ansible.utils.listify import listify_lookup_plugin_terms
 from ansible.utils.unsafe_proxy import wrap_var
-from ansible.utils.vars import combine_vars, get_unique_id
+from ansible.utils.vars import combine_vars
 from ansible.vars.clean import strip_internal_keys, module_response_deepcopy
 
 display = Display()
@@ -600,7 +601,6 @@ class StrategyBase:
 
         # FIXME ETOOMANYTEMPLARS
         templar = Templar(loader=self._loader, variables=task_vars)
-        res = None
 
         try:
             delegated_vars, delegated_host_name = self._variable_manager.get_delegated_vars_and_hostname(templar, task, task_vars)
@@ -609,89 +609,82 @@ class StrategyBase:
                 task.delegate_to = delegated_host_name
                 task_vars.update(delegated_vars)
         except AnsibleError as e:
-            res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
-        else:
+            raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log))
+
+        try:
+            try:
+                play_context = play_context.set_task_and_variable_override(
+                    task=task,
+                    variables=task_vars,
+                    templar=templar,
+                )
+                play_context.post_validate(templar=templar)
+                if not play_context.remote_addr:
+                    play_context.remote_addr = host.address
+                play_context.update_vars(task_vars)
+            except AnsibleUndefinedVariable:
+                # if we ran into an error while setting up the PlayContext, raise it now, unless is known issue with delegation
+                # and undefined vars (correct values are in cvars later on and connection plugins, if still error, blows up there)
+                if not task.delegate_to:
+                    raise
+            except AnsibleParserError as e:
+                if not (
+                    task.delegate_to
+                    and (orig_exc := getattr(e, 'orig_exc', None))
+                    and isinstance(orig_exc, AnsibleUndefinedVariable)
+                ):
+                    raise
+        except AnsibleError as e:
             try:
                 try:
-                    play_context = play_context.set_task_and_variable_override(
-                        task=task,
-                        variables=task_vars,
-                        templar=templar,
-                    )
-                    play_context.post_validate(templar=templar)
-                    if not play_context.remote_addr:
-                        play_context.remote_addr = host.address
-                    play_context.update_vars(task_vars)
-                except AnsibleUndefinedVariable:
-                    # if we ran into an error while setting up the PlayContext, raise it now, unless is known issue with delegation
-                    # and undefined vars (correct values are in cvars later on and connection plugins, if still error, blows up there)
-                    if not task.delegate_to:
-                        raise
-                except AnsibleParserError as e:
-                    if not (
-                        task.delegate_to
-                        and (orig_exc := getattr(e, 'orig_exc', None))
-                        and isinstance(orig_exc, AnsibleUndefinedVariable)
-                    ):
-                        raise
-            except AnsibleError as e:
-                try:
                     conditional_result, false_condition = task.evaluate_conditional_with_result(templar, task_vars)
-                    if not conditional_result:
-                        display.debug("when evaluation is False, skipping this task")
-                        res = dict(
-                            changed=False,
-                            skipped=True,
-                            skip_reason='Conditional result was False',
-                            false_condition=false_condition,
-                            ansible_no_log=templar.template(task.no_log),  # FIXME
-                        )
-                    else:
-                        res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
-                except AnsibleError as e:
-                    res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
-
-        if res:
-            self._queued_task_cache[(host.name, task._uuid, task.loop_idx)] = {
-                'host': host,
-                'task': task,
-                'task_vars': task_vars,
-                'play_context': play_context
-            }
-            # FIXME callback sent?
-            if isinstance(task, Handler):
-                self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
-            else:
-                self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
-            self._tqm.send_callback('v2_runner_on_start', host, task)
-            self._pending_results += 1
-            with self._results_lock:
-                self._results.append(TaskResult(host, task, res))
-            raise ValueError
+                except AnsibleError as ex:
+                    raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
+                if not conditional_result:
+                    display.debug("when evaluation is False, skipping this task")
+                    raise AnsibleSendControllerTaskResult(dict(
+                        changed=False,
+                        skipped=True,
+                        skip_reason='Conditional result was False',
+                        false_condition=false_condition,
+                        ansible_no_log=templar.template(task.no_log),  # FIXME
+                    ))
+                else:
+                    raise AnsibleSendControllerTaskResult(
+                        dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log)
+                    )
+            except AnsibleSendControllerTaskResult:
+                raise
+            except AnsibleError as e:
+                raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=play_context.no_log))
 
         return task, play_context
 
     def _unroll_loop(self, host, task, task_vars, play_context, iterator):
         templar = Templar(self._loader, variables=task_vars)
-        res = None
         try:
             if not (items := self._get_loop_items(task, task_vars)):
-                res = dict(changed=False, skipped=True, skipped_reason='No items in the list', results=[])
+                raise AnsibleSendControllerTaskResult(dict(changed=False, skipped=True, skipped_reason='No items in the list', results=[]))
         except AnsibleUndefinedVariable as ex:
-            conditional_result, false_condition = task.evaluate_conditional_with_result(templar, task_vars)
+            try:
+                conditional_result, false_condition = task.evaluate_conditional_with_result(templar, task_vars)
+            except AnsibleError as ex:
+                raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
             if not conditional_result:
                 display.debug("when evaluation is False, skipping this task")
-                res = dict(
+                raise AnsibleSendControllerTaskResult(dict(
                     changed=False,
                     skipped=True,
                     skip_reason='Conditional result was False',
                     false_condition=false_condition,
                     ansible_no_log=templar.template(task.no_log),  # FIXME
-                )
+                ))
             else:
-                res = dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')))
+                raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
+        except AnsibleSendControllerTaskResult:
+            raise
         except AnsibleError as ex:
-            res = dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')))
+            raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
 
         self._queued_task_cache[(host.name, task._uuid, None)] = {
             'host': host,
@@ -699,18 +692,6 @@ class StrategyBase:
             'task_vars': task_vars,
             'play_context': play_context
         }
-
-        if res:
-            # FIXME callback sent?
-            if isinstance(task, Handler):
-                self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
-            else:
-                self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
-            self._tqm.send_callback('v2_runner_on_start', host, task)
-            self._pending_results += 1
-            with self._results_lock:
-                self._results.append(TaskResult(host, task, res))
-            return
 
         self._loop_results_cache[(host.name, task._uuid)] = {
             'items_len': (items_len := len(items)),
@@ -811,6 +792,53 @@ class StrategyBase:
 
         # FIXME weird return value
         return res, ignore_errors, ignore_unreachable
+
+    def _send_controller_task_result(self, result, host, task, task_vars, play_context):
+        self._queued_task_cache[(host.name, task._uuid, task.loop_idx)] = {
+            'host': host,
+            'task': task,
+            'task_vars': task_vars,
+            'play_context': play_context,
+        }
+        if isinstance(task, Handler):
+            self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
+        else:
+            self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
+        self._tqm.send_callback('v2_runner_on_start', host, task)
+        self._pending_results += 1
+        res = result.copy()
+        #### FIXME code duplicate
+        if task.loop_idx is not None:
+            res[task_vars['ansible_loop_var']] = task_vars[task_vars['ansible_loop_var']]
+            res.update(
+                ansible_loop_var=task_vars['ansible_loop_var'],
+                _ansible_item_result=True,
+                _ansible_ignore_errors=task.ignore_errors,
+                _ansible_ignore_unreachable=task.ignore_unreachable,
+            )
+            if index_var := task_vars.get('index_var'):
+                res[index_var] = task_vars[index_var]
+                res['ansible_index_var'] = task_vars['ansible_index_var']
+            if ansible_loop := task_vars.get('ansible_loop'):
+                res['ansible_loop'] = ansible_loop
+
+            if task.register:
+                task_vars[task.register] = res
+
+            try:
+                templar = Templar(loader=self._loader, variables=task_vars)
+                res['_ansible_item_label'] = templar.template(
+                    task.loop_control.label or '{{' + task_vars['ansible_loop_var'] + '}}'
+                )
+            except AnsibleUndefinedVariable as e:
+                res.update({
+                    'failed': True,
+                    'msg': 'Failed to template loop_control.label: %s' % to_text(e)
+                })
+        #### FIXME code duplicate
+
+        with self._results_lock:
+            self._results.append(TaskResult(host, task, res))
 
     @debug_closure
     def _process_pending_results(self, iterator, one_pass=False, max_passes=None):

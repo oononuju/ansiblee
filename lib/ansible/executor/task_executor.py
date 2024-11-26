@@ -223,12 +223,6 @@ class TaskExecutor:
 
         no_log = self._play_context.no_log
 
-        conditional_result, false_condition = self._task.evaluate_conditional_with_result(templar, variables)
-        if not conditional_result:
-            display.debug("when evaluation is False, skipping this task")
-            return dict(changed=False, skipped=True, skip_reason='Conditional result was False',
-                        false_condition=false_condition, _ansible_no_log=no_log)
-
         # if this task is a TaskInclude, we just return now with a success code so the
         # main thread can expand the task list for the given host
         if self._task.action in C._ACTION_INCLUDE_TASKS:

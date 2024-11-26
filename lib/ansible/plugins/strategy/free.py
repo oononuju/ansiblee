@@ -16,6 +16,8 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import annotations
 
+import traceback
+
 DOCUMENTATION = """
     name: free
     short_description: Executes tasks without waiting for all hosts
@@ -228,6 +230,47 @@ class StrategyModule(StrategyBase):
                                             callback_sent = True
                                             raise AnsibleSendControllerTaskResult(dict(changed=False, include_args=include_args))
                                         else:
+                                            try:
+                                                new_task.squash()
+                                                new_task.post_validate(templar=templar)
+                                                if variable_params := new_task.args.pop('_variable_params', None):
+                                                    if isinstance(variable_params, dict):
+                                                        if C.INJECT_FACTS_AS_VARS:
+                                                            display.warning(
+                                                                "Using a variable for a task's 'args' is unsafe in some situations "
+                                                                "(see https://docs.ansible.com/ansible/devel/reference_appendices/faq.html#argsplat-unsafe)")
+                                                        variable_params.update(new_task.args)
+                                                        new_task.args = variable_params
+                                                    else:
+                                                        # if we didn't get a dict, it means there's garbage remaining after k=v parsing, just give up
+                                                        # see https://github.com/ansible/ansible/issues/79862
+                                                        res = dict(failed=True,
+                                                                   msg=wrap_var(to_text(f"invalid or malformed argument: '{variable_params}'", nonstring='simplerepr')),
+                                                                   _ansible_no_log=new_play_context.no_log)
+                                                        # FIXME consolidate _ansible_item_result somewhere
+                                                        if new_task.loop_idx is not None:
+                                                            res.update(
+                                                                _ansible_item_result=True,
+                                                                _ansible_ignore_errors=new_task.ignore_errors,
+                                                                _ansible_ignore_unreachable=new_task.ignore_unreachable,
+                                                            )
+                                                        raise AnsibleSendControllerTaskResult(res)
+                                            except AnsibleSendControllerTaskResult:
+                                                raise
+                                            except AnsibleError as ex:
+                                                raise AnsibleSendControllerTaskResult(
+                                                    dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')),
+                                                         _ansible_no_log=new_play_context.no_log))
+                                            except Exception:
+                                                raise AnsibleSendControllerTaskResult(
+                                                    dict(
+                                                        changed=False,
+                                                        failed=True,
+                                                        _ansible_no_log=new_play_context.no_log,
+                                                        exception=to_text(traceback.format_exc()),
+                                                    )
+                                                )
+
                                             self._queue_task(host, new_task, task_vars, new_play_context)
                                         # each task is counted as a worker being busy
                                         workers_free -= 1

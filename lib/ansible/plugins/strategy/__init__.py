@@ -412,7 +412,7 @@ class StrategyBase:
 
                     # Pass WorkerProcess its strategy worker number so it can send an identifier along with intra-task requests
                     worker_prc = WorkerProcess(
-                        self._final_q, task_vars, host, task, play_context, self._loader, self._variable_manager, plugin_loader, self._cur_worker,
+                        self._final_q, task_vars, host, task, play_context, self._loader, plugin_loader, self._cur_worker,
                     )
                     self._workers[self._cur_worker] = worker_prc
                     self._tqm.send_callback('v2_runner_on_start', host, task)
@@ -501,12 +501,10 @@ class StrategyBase:
                 # of an implicit async_status task
                 if task_result._task_fields.get('action') != 'async_status':
                     raise
-                original_task = Task()
-            else:
-                original_task = found_task.copy(exclude_parent=True, exclude_tasks=True)
-                original_task._parent = found_task._parent
-            original_task.from_attrs(task_result._task_fields)
-            task_result._task = original_task
+                found_task = Task()
+                found_task.from_attrs(task_result._task_fields)
+
+            task_result._task = found_task
 
         return task_result
 
@@ -794,6 +792,7 @@ class StrategyBase:
         return res, ignore_errors, ignore_unreachable
 
     def _send_controller_task_result(self, result, host, task, task_vars, play_context, callback_sent=False):
+        # FIXME check all invocations to see what result contains and consolidate if needed
         self._queued_task_cache[(host.name, task._uuid, task.loop_idx)] = {
             'host': host,
             'task': task,
@@ -838,6 +837,7 @@ class StrategyBase:
                 })
         #### FIXME code duplicate
 
+        res.update(_ansible_no_log=play_context.no_log)
         with self._results_lock:
             self._results.append(TaskResult(host, task, res))
 

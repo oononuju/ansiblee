@@ -14,7 +14,7 @@ import traceback
 
 from ansible import constants as C
 from ansible.cli import scripts
-from ansible.errors import AnsibleError, AnsibleParserError, AnsibleUndefinedVariable, AnsibleConnectionFailure, AnsibleActionFail, AnsibleActionSkip
+from ansible.errors import AnsibleError, AnsibleUndefinedVariable, AnsibleConnectionFailure, AnsibleActionFail, AnsibleActionSkip
 from ansible.executor.task_result import TaskResult
 from ansible.executor.module_common import get_action_args_with_defaults
 from ansible.module_utils.parsing.convert_bool import boolean
@@ -90,7 +90,7 @@ class TaskExecutor:
     class.
     """
 
-    def __init__(self, host, task, job_vars, play_context, new_stdin, loader, shared_loader_obj, final_q, variable_manager):
+    def __init__(self, host, task, job_vars, play_context, new_stdin, loader, shared_loader_obj, final_q):
         self._host = host
         self._task = task
         self._job_vars = job_vars
@@ -100,9 +100,6 @@ class TaskExecutor:
         self._shared_loader_obj = shared_loader_obj
         self._connection = None
         self._final_q = final_q
-        self._variable_manager = variable_manager
-
-        self._task.squash()
 
     def run(self):
         """
@@ -186,6 +183,7 @@ class TaskExecutor:
             return res
         except AnsibleError as e:
             res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=self._play_context.no_log)
+            # FIXME consolidate _ansible_item_result somewhere
             if self._task.loop_idx is not None:
                 res.update(
                     _ansible_item_result=True,
@@ -219,30 +217,6 @@ class TaskExecutor:
         """
         variables = self._job_vars
 
-        templar = Templar(loader=self._loader, variables=variables)
-
-        no_log = self._play_context.no_log
-
-        # Now we do final validation on the task, which sets all fields to their final values.
-        try:
-            self._task.post_validate(templar=templar)
-        except AnsibleError:
-            raise
-        except Exception:
-            return dict(changed=False, failed=True, _ansible_no_log=no_log, exception=to_text(traceback.format_exc()))
-
-        if variable_params := self._task.args.pop('_variable_params', None):
-            if isinstance(variable_params, dict):
-                if C.INJECT_FACTS_AS_VARS:
-                    display.warning("Using a variable for a task's 'args' is unsafe in some situations "
-                                    "(see https://docs.ansible.com/ansible/devel/reference_appendices/faq.html#argsplat-unsafe)")
-                variable_params.update(self._task.args)
-                self._task.args = variable_params
-            else:
-                # if we didn't get a dict, it means there's garbage remaining after k=v parsing, just give up
-                # see https://github.com/ansible/ansible/issues/79862
-                raise AnsibleError(f"invalid or malformed argument: '{variable_params}'")
-
         # update no_log to task value, now that we have it templated
         no_log = self._task.no_log
 
@@ -254,7 +228,7 @@ class TaskExecutor:
             # just use normal host vars
             cvars = variables
 
-        templar.available_variables = cvars
+        templar = Templar(loader=self._loader, variables=cvars)
 
         # use magic var if it exists, if not, let task inheritance do it's thing.
         if cvars.get('ansible_connection') is not None:
@@ -262,19 +236,7 @@ class TaskExecutor:
         else:
             current_connection = self._task.connection
 
-        # get the connection and the handler for this execution
-        if (not self._connection or
-                not getattr(self._connection, 'connected', False) or
-                not self._connection.matches_name([current_connection]) or
-                # pc compare, left here for old plugins, but should be irrelevant for those
-                # using get_option, since they are cleared each iteration.
-                self._play_context.remote_addr != self._connection._play_context.remote_addr):
-            self._connection = self._get_connection(cvars, templar, current_connection)
-        else:
-            # if connection is reused, its _play_context is no longer valid and needs
-            # to be replaced with the one templated above, in case other data changed
-            self._connection._play_context = self._play_context
-            self._set_become_plugin(cvars, templar, self._connection)
+        self._connection = self._get_connection(cvars, templar, current_connection)
 
         plugin_vars = self._set_connection_options(cvars, templar)
 
@@ -304,6 +266,7 @@ class TaskExecutor:
             module_defaults_fqcn = self._task.resolved_action
 
         # Apply default params for action/module, if present
+        # FIXME
         self._task.args = get_action_args_with_defaults(
             module_defaults_fqcn, self._task.args, self._task.module_defaults, templar,
             action_groups=self._task._parent._play._action_groups
@@ -312,7 +275,7 @@ class TaskExecutor:
         # And filter out any fields which were set to default(omit), and got the omit token value
         omit_token = variables.get('omit')
         if omit_token is not None:
-            self._task.args = remove_omit(self._task.args, omit_token)
+            self._task.args = remove_omit(self._task.args, omit_token)  # FIXME
 
         retries = 1  # includes the default actual run + retries set by user/default
         if self._task.retries is not None:

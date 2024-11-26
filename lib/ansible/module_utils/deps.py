@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# (c) 2022, Alexei Znamensky <russoz@gmail.com>
-# Copyright (c) 2022, Ansible Project
+# (c) 2024, Alexei Znamensky <russoz@gmail.com>
+# Copyright (c) 2024, Ansible Project
 # Simplified BSD License (see LICENSES/BSD-2-Clause.txt or https://opensource.org/licenses/BSD-2-Clause)
 # SPDX-License-Identifier: BSD-2-Clause
 

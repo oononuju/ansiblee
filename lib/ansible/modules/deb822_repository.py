@@ -230,10 +230,9 @@ import os
 import re
 import tempfile
 import textwrap
-import traceback
 
+from ansible.module_utils import deps
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import missing_required_lib
 from ansible.module_utils.common.collections import is_sequence
 from ansible.module_utils.common.file import S_IRWXU_RXG_RXO, S_IRWU_RG_RO
 from ansible.module_utils.common.text.converters import to_bytes
@@ -244,13 +243,9 @@ from ansible.module_utils.urls import open_url
 from ansible.module_utils.urls import get_user_agent
 from ansible.module_utils.urls import urlparse
 
-HAS_DEBIAN = True
-DEBIAN_IMP_ERR = None
-try:
+
+with deps.declare("python3-debian"):
     from debian.deb822 import Deb822  # type: ignore[import]
-except ImportError:
-    HAS_DEBIAN = False
-    DEBIAN_IMP_ERR = traceback.format_exc()
 
 KEYRINGS_DIR = '/etc/apt/keyrings'
 
@@ -453,9 +448,7 @@ def main():
         supports_check_mode=True,
     )
 
-    if not HAS_DEBIAN:
-        module.fail_json(msg=missing_required_lib("python3-debian"),
-                         exception=DEBIAN_IMP_ERR)
+    deps.validate(module)
 
     check_mode = module.check_mode
 

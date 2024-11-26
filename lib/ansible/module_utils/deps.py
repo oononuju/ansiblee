@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# (c) 2024, Alexei Znamensky <russoz@gmail.com>
-# (c) 2024, Ansible Project
+# (c) 2022, Alexei Znamensky <russoz@gmail.com>
+# Copyright (c) 2022, Ansible Project
 # Simplified BSD License (see LICENSES/BSD-2-Clause.txt or https://opensource.org/licenses/BSD-2-Clause)
 # SPDX-License-Identifier: BSD-2-Clause
 
@@ -81,7 +81,7 @@ def _select_names(spec):
             spec_split = spec.split(":")
             dep_names = []
             for d in spec_split:
-                _deps[d]  # ensure it exists
+                _deps[d]  # pylint:disable=pointless-statement
                 dep_names.append(d)
 
     return dep_names
@@ -94,3 +94,7 @@ def validate(module, spec=None):
 
 def failed(spec=None):
     return any(_deps[d].failed for d in _select_names(spec))
+
+
+def clear():
+    _deps.clear()

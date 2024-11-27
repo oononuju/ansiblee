@@ -225,73 +225,15 @@ class AzurePipelinesChanges:
 
     def fetch_common_ancestor_commit(self) -> None:
         """Augment the Git tree parts needed to reach the merge base."""
-        # This is achieved by doing the following:
-        # 1. Fetch one additional commit at the root of each orphaned
-        #    branch.
-        # 2. Identify said commits as tree roots or "grafted".
-        # 3. Retrieve the timestamps of both and safe the oldest one.
-        # 4. Fetch again, now instructing Git to include everything past
-        #    this date.
-        #
-        # The idea is that the very first commit in the PR branch might
-        # be created on the same day as the PR is opened. However, its
-        # parent would belong to the base branch, which is immutable. So
-        # if we take that commit's time stamp, we can tell Git to fill
-        # in the commits between the PR branch chunk and the commit it
-        # branched out of (the fork point). We'll also fill in the
-        # commits on the other side of the "fork", in the base branch.
-        # With those commits retrieved and available in the local cache
-        # of the remote, it will be possible for git diff to locate the
-        # merge base and compute the file list, while the tree remains
-        # shallow. This is still a heuristic, of course, since the
-        # commit dates can be out of order in the tree. But it's not
-        # expected that we'll hit this corner case often or ever.
+        # This is achieved by unshallowing the entire Git tree.
+        # A more granular alternative approach is presented in
+        # https://github.com/ansible/ansible/pull/84375.
         display.info(
             'Attempting to fetch parts of Git tree '
             'making the branch fork point reachable...',
         )
 
-        self.git.run_git(
-            [
-                'fetch',
-                '--deepen=1',
-                '--no-tags',
-                'origin',
-                self.base_commit,
-                self.commit,
-            ],
-        )
-
-        grafted_commits = self.git.run_git_split(
-            [
-                'rev-list',
-                '--reflog',
-                '--max-parents=0',  # filter to "root" / "grafted" commits
-                '--reverse',  # oldest first
-                f'{self.base_commit}^',  # "base shallow parent"
-                f'{self.commit}^',  # PR "parent" commit
-            ],
-        )
-        oldest_required_parent_sha = grafted_commits[0]
-
-        fork_point_timestamp = self.git.run_git(
-            [
-                'show',
-                '--format=%at',
-                '--no-patch',
-                oldest_required_parent_sha,
-            ],
-        ).strip()
-
-        self.git.run_git(
-            [
-                'fetch',
-                f'--shallow-since="{fork_point_timestamp}"',
-                'origin',
-                self.base_commit,
-                self.commit,
-            ],
-        )
+        self.git.run_git(['fetch', '--unshallow', 'origin'])
 
     def get_changed_paths(self) -> list[str]:
         """Identify files changed in base or target since fork."""

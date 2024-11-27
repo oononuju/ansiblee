@@ -787,10 +787,10 @@ class AnsibleModule(object):
         return changed
 
     def set_owner_if_different(self, path, owner, changed, diff=None, expand=True):
-        return self.set_owner_and_group_if_different(path, owner, None, changed, diff=None, expand=True)
+        return self.set_owner_and_group_if_different(path, owner, None, changed, diff=diff, expand=expand)
 
     def set_group_if_different(self, path, group, changed, diff=None, expand=True):
-        return self.set_owner_and_group_if_different(path, None, group, changed, diff=None, expand=True)
+        return self.set_owner_and_group_if_different(path, None, group, changed, diff=diff, expand=expand)
 
     def set_mode_if_different(self, path, mode, changed, diff=None, expand=True):
 

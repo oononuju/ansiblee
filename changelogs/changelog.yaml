@@ -612,6 +612,17 @@ releases:
     - cve-2024-8775.yml
     - user_ssh_fix.yml
     release_date: '2024-10-29'
+  2.18.1:
+    changes:
+      release_summary: '| Release Date: 2024-12-02
+
+        | `Porting Guide <https://docs.ansible.com/ansible-core/2.18/porting_guides/porting_guide_core_2.18.html>`__
+
+        '
+    codename: Fool in the Rain
+    fragments:
+    - 2.18.1_summary.yaml
+    release_date: '2024-12-02'
   2.18.1rc1:
     changes:
       bugfixes:

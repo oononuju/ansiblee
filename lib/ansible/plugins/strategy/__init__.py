@@ -25,6 +25,7 @@ import queue
 import sys
 import threading
 import time
+import traceback
 import typing as t
 
 from collections import deque
@@ -205,7 +206,9 @@ def debug_closure(func):
                     self._tqm._stats.decrement('ok', host.name)
 
                     # redo
-                    self._queue_task(host, task, task_vars, play_context)
+                    # FIXME
+                    templar = Templar(loader=self._loader, variables=task_vars)
+                    self._queue_task(host, task, task_vars, play_context, task.action, templar)
 
                     _processed_results.extend(debug_closure(func)(self, iterator, one_pass))
                     break
@@ -351,7 +354,76 @@ class StrategyBase:
         vars['ansible_current_hosts'] = self.get_hosts_remaining(play)
         vars['ansible_failed_hosts'] = self.get_failed_hosts(play)
 
-    def _queue_task(self, host, task, task_vars, play_context):
+    def _queue_task(self, host, task, task_vars, play_context, task_action, templar):
+        try:
+            conditional_result, false_condition = task.evaluate_conditional_with_result(templar, task_vars)
+        except AnsibleError as ex:
+            raise AnsibleSendControllerTaskResult(
+                dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
+        if not conditional_result:
+            display.debug("when evaluation is False, skipping this task")
+            raise AnsibleSendControllerTaskResult(
+                dict(changed=False, skipped=True, skip_reason='Conditional result was False',
+                     false_condition=false_condition, _ansible_no_log=play_context.no_log)
+            )
+
+        self._blocked_hosts[host.get_name()] = True
+
+        if task_action in C._ACTION_INCLUDE_TASKS:
+            include_args = task.args.copy()
+            include_file = include_args.pop('_raw_params', None)
+            if not include_file:
+                raise AnsibleSendControllerTaskResult(
+                    dict(changed=False, failed=True, msg="No include file was specified to the include")
+                )
+
+            include_file = templar.template(include_file)
+            raise AnsibleSendControllerTaskResult(
+                dict(changed=False, include=include_file, include_args=include_args))
+        elif task_action in C._ACTION_INCLUDE_ROLE:
+            include_args = task.args.copy()
+            raise AnsibleSendControllerTaskResult(dict(changed=False, include_args=include_args))
+        else:
+            try:
+                task.squash()
+                task.post_validate(templar=templar)
+                if variable_params := task.args.pop('_variable_params', None):
+                    if isinstance(variable_params, dict):
+                        if C.INJECT_FACTS_AS_VARS:
+                            display.warning(
+                                "Using a variable for a task's 'args' is unsafe in some situations "
+                                "(see https://docs.ansible.com/ansible/devel/reference_appendices/faq.html#argsplat-unsafe)")
+                        variable_params.update(task.args)
+                        task.args = variable_params
+                    else:
+                        # if we didn't get a dict, it means there's garbage remaining after k=v parsing, just give up
+                        # see https://github.com/ansible/ansible/issues/79862
+                        raise AnsibleSendControllerTaskResult(
+                            dict(
+                                failed=True,
+                                msg=wrap_var(to_text(f"invalid or malformed argument: '{variable_params}'", nonstring='simplerepr')),
+                                _ansible_no_log=play_context.no_log,
+                            )
+                        )
+            except AnsibleSendControllerTaskResult:
+                raise
+            except AnsibleError as ex:
+                raise AnsibleSendControllerTaskResult(
+                    dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')),
+                         _ansible_no_log=play_context.no_log))
+            except Exception:
+                raise AnsibleSendControllerTaskResult(
+                    dict(
+                        changed=False,
+                        failed=True,
+                        _ansible_no_log=play_context.no_log,
+                        exception=to_text(traceback.format_exc()),
+                    )
+                )
+
+            self._queue_task1(host, task, task_vars, play_context)
+
+    def _queue_task1(self, host, task, task_vars, play_context):
         """ handles queueing the task up to be sent to a worker """
 
         display.debug("entering _queue_task() for %s/%s" % (host.name, task.action))
@@ -505,6 +577,34 @@ class StrategyBase:
                 found_task.from_attrs(task_result._task_fields)
 
             task_result._task = found_task
+
+            if found_task.loop_idx is not None:
+                task_vars = self._queued_task_cache[queue_cache_entry]['task_vars']
+                task_result._result[task_vars['ansible_loop_var']] = task_vars[task_vars['ansible_loop_var']]
+                task_result._result.update(
+                    ansible_loop_var=task_vars['ansible_loop_var'],
+                    _ansible_ignore_errors=found_task.ignore_errors,
+                    _ansible_ignore_unreachable=found_task.ignore_unreachable,
+                )
+                if index_var := task_vars.get('index_var'):
+                    task_result._result[index_var] = task_vars[index_var]
+                    task_result._result['ansible_index_var'] = task_vars['ansible_index_var']
+                if ansible_loop := task_vars.get('ansible_loop'):
+                    task_result._result['ansible_loop'] = ansible_loop
+
+                if found_task.register:
+                    task_vars[found_task.register] = task_result._result
+
+                try:
+                    templar = Templar(loader=self._loader, variables=task_vars)
+                    task_result._result['_ansible_item_label'] = templar.template(
+                        found_task.loop_control.label or '{{' + task_vars['ansible_loop_var'] + '}}'
+                    )
+                except AnsibleUndefinedVariable as e:
+                    task_result._result.update({
+                        'failed': True,
+                        'msg': 'Failed to template loop_control.label: %s' % to_text(e)
+                    })
 
         return task_result
 
@@ -660,12 +760,13 @@ class StrategyBase:
 
     def _unroll_loop(self, host, task, task_vars, play_context, iterator):
         templar = Templar(self._loader, variables=task_vars)
+        task_copy = task.copy()
         try:
-            if not (items := self._get_loop_items(task, task_vars)):
+            if not (items := self._get_loop_items(task_copy, task_vars)):
                 raise AnsibleSendControllerTaskResult(dict(changed=False, skipped=True, skipped_reason='No items in the list', results=[]))
         except AnsibleUndefinedVariable as ex:
             try:
-                conditional_result, false_condition = task.evaluate_conditional_with_result(templar, task_vars)
+                conditional_result, false_condition = task_copy.evaluate_conditional_with_result(templar, task_vars)
             except AnsibleError as ex:
                 raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
             if not conditional_result:
@@ -675,7 +776,7 @@ class StrategyBase:
                     skipped=True,
                     skip_reason='Conditional result was False',
                     false_condition=false_condition,
-                    ansible_no_log=templar.template(task.no_log),  # FIXME
+                    ansible_no_log=templar.template(task_copy.no_log),  # FIXME
                 ))
             else:
                 raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
@@ -684,20 +785,19 @@ class StrategyBase:
         except AnsibleError as ex:
             raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
 
-        self._queued_task_cache[(host.name, task._uuid, None)] = {
+        self._queued_task_cache[(host.name, task_copy._uuid, None)] = {
             'host': host,
-            'task': task,
+            'task': task_copy,
             'task_vars': task_vars,
             'play_context': play_context
         }
 
-        self._loop_results_cache[(host.name, task._uuid)] = {
+        self._loop_results_cache[(host.name, task_copy._uuid)] = {
             'items_len': (items_len := len(items)),
             'results': [],
         }
 
         # FIXME try..except this whole block and send result
-        task_copy = task.copy()
         task_copy.loop_control.post_validate(templar=templar)
 
         loop_var = task_copy.loop_control.loop_var
@@ -744,6 +844,8 @@ class StrategyBase:
             loop_task.loop_control = task_copy.loop_control
             loop_task.loop_vars = item_vars
             loop_task.loop_idx = item_index
+            if isinstance(loop_task, Handler):
+                loop_task.notified_hosts = task.notified_hosts.copy()
             loop_tasks.append(loop_task)
 
         iterator.add_tasks(host, loop_tasks)
@@ -791,7 +893,7 @@ class StrategyBase:
         # FIXME weird return value
         return res, ignore_errors, ignore_unreachable
 
-    def _send_controller_task_result(self, result, host, task, task_vars, play_context, callback_sent=False):
+    def _send_controller_task_result(self, result, host, task, task_vars, play_context):
         # FIXME check all invocations to see what result contains and consolidate if needed
         self._queued_task_cache[(host.name, task._uuid, task.loop_idx)] = {
             'host': host,
@@ -799,47 +901,12 @@ class StrategyBase:
             'task_vars': task_vars,
             'play_context': play_context,
         }
-        if not callback_sent:
-            if isinstance(task, Handler):
-                self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
-            else:
-                self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
         self._tqm.send_callback('v2_runner_on_start', host, task)
         self._pending_results += 1
         res = result.copy()
-        #### FIXME code duplicate
-        if task.loop_idx is not None:
-            res[task_vars['ansible_loop_var']] = task_vars[task_vars['ansible_loop_var']]
-            res.update(
-                ansible_loop_var=task_vars['ansible_loop_var'],
-                _ansible_item_result=True,
-                _ansible_ignore_errors=task.ignore_errors,
-                _ansible_ignore_unreachable=task.ignore_unreachable,
-            )
-            if index_var := task_vars.get('index_var'):
-                res[index_var] = task_vars[index_var]
-                res['ansible_index_var'] = task_vars['ansible_index_var']
-            if ansible_loop := task_vars.get('ansible_loop'):
-                res['ansible_loop'] = ansible_loop
-
-            if task.register:
-                task_vars[task.register] = res
-
-            try:
-                templar = Templar(loader=self._loader, variables=task_vars)
-                res['_ansible_item_label'] = templar.template(
-                    task.loop_control.label or '{{' + task_vars['ansible_loop_var'] + '}}'
-                )
-            except AnsibleUndefinedVariable as e:
-                res.update({
-                    'failed': True,
-                    'msg': 'Failed to template loop_control.label: %s' % to_text(e)
-                })
-        #### FIXME code duplicate
-
         res.update(_ansible_no_log=play_context.no_log)
         with self._results_lock:
-            self._results.append(TaskResult(host, task, res))
+            self._results.append(self.normalize_task_result(TaskResult(host.name, task._uuid, res, task_fields={"loop_idx": task.loop_idx})))
 
     @debug_closure
     def _process_pending_results(self, iterator, one_pass=False, max_passes=None):
@@ -863,8 +930,8 @@ class StrategyBase:
 
             # all host status messages contain 2 entries: (msg, task_result)
             role_ran = False
-            if task_result._result.get('_ansible_item_result'):
-                ### FIXME duplicate code ###################################################################################
+            if original_task.loop_idx is not None:
+                # FIXME duplicate code ###################################################################################
                 if 'ansible_facts' in task_result._result and original_task.action not in C._ACTION_DEBUG:
                     # if delegated fact and we are delegating facts, we need to change target host for them
                     if original_task.delegate_to is not None and original_task.delegate_facts:
@@ -895,7 +962,7 @@ class StrategyBase:
                             if is_set_fact:
                                 self._variable_manager.set_nonpersistent_facts(target_host,
                                                                                task_result._result['ansible_facts'].copy())
-                ### FIXME duplicate code ###################################################################################
+                # FIXME duplicate code ###################################################################################
 
                 results_cache = self._loop_results_cache[(original_host.name, original_task._uuid)]
 
@@ -933,19 +1000,18 @@ class StrategyBase:
 
                 if is_last_item:
                     t = self._queued_task_cache[(original_host.name, original_task._uuid, None)]['task']
-                    # FIXME host vars in run_once etc? copy the global loop task?
                     t.run_once = original_task.run_once
                     t.action = original_task.action
                     t.no_log = original_task.no_log
                     global_loop_result, t.ignore_errors, t.ignore_unreachable = self._create_global_loop_result(results_cache['results'])
                     global_task_result = TaskResult(
-                        original_host,
-                        t,
+                        original_host.name,
+                        t._uuid,
                         global_loop_result,
                     )
                     self._pending_results += 1
                     with self._results_lock:
-                        self._results.appendleft(global_task_result)
+                        self._results.appendleft(self.normalize_task_result(global_task_result))
                     self._loop_results_cache.pop((original_host.name, original_task._uuid))
             elif task_result.is_failed():
                 role_ran = True
@@ -1304,10 +1370,6 @@ class StrategyBase:
         skipped = False
         msg = meta_action
         skip_reason = '%s conditional evaluated to False' % meta_action
-        if isinstance(task, Handler):
-            self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
-        else:
-            self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
 
         # These don't support "when" conditionals
         if meta_action in ('noop', 'refresh_inventory', 'reset_connection') and task.when:

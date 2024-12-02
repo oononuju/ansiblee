@@ -14,7 +14,7 @@ import traceback
 
 from ansible import constants as C
 from ansible.cli import scripts
-from ansible.errors import AnsibleError, AnsibleUndefinedVariable, AnsibleConnectionFailure, AnsibleActionFail, AnsibleActionSkip
+from ansible.errors import AnsibleError, AnsibleConnectionFailure, AnsibleActionFail, AnsibleActionSkip
 from ansible.executor.task_result import TaskResult
 from ansible.executor.module_common import get_action_args_with_defaults
 from ansible.module_utils.parsing.convert_bool import boolean
@@ -124,34 +124,6 @@ class TaskExecutor:
             res = self._execute()
             display.debug("_execute() done")
 
-            if self._task.loop_idx is not None:
-                res[self._job_vars['ansible_loop_var']] = self._job_vars[self._job_vars['ansible_loop_var']]
-                res.update(
-                    ansible_loop_var=self._job_vars['ansible_loop_var'],
-                    _ansible_item_result=True,
-                    _ansible_ignore_errors=self._task.ignore_errors,
-                    _ansible_ignore_unreachable=self._task.ignore_unreachable,
-                )
-                if index_var := self._job_vars.get('index_var'):
-                    res[index_var] = self._job_vars[index_var]
-                    res['ansible_index_var'] = self._job_vars['ansible_index_var']
-                if ansible_loop := self._job_vars.get('ansible_loop'):
-                    res['ansible_loop'] = ansible_loop
-
-                if self._task.register:
-                    self._job_vars[self._task.register] = res
-
-                try:
-                    templar = Templar(loader=self._loader, variables=self._job_vars)
-                    res['_ansible_item_label'] = templar.template(
-                        self._task.loop_control.label or '{{' + self._job_vars['ansible_loop_var'] + '}}'
-                    )
-                except AnsibleUndefinedVariable as e:
-                    res.update({
-                        'failed': True,
-                        'msg': 'Failed to template loop_control.label: %s' % to_text(e)
-                    })
-
             # make sure changed is set in the result, if it's not present
             if 'changed' not in res:
                 res['changed'] = False
@@ -182,25 +154,10 @@ class TaskExecutor:
             display.debug("done dumping result, returning")
             return res
         except AnsibleError as e:
-            res = dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=self._play_context.no_log)
-            # FIXME consolidate _ansible_item_result somewhere
-            if self._task.loop_idx is not None:
-                res.update(
-                    _ansible_item_result=True,
-                    _ansible_ignore_errors=self._task.ignore_errors,
-                    _ansible_ignore_unreachable=self._task.ignore_unreachable,
-                )
-            return res
+            return dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=self._play_context.no_log)
         except Exception as e:
-            res = dict(failed=True, msg=wrap_var('Unexpected failure during module execution: %s' % (to_native(e, nonstring='simplerepr'))),
+            return dict(failed=True, msg=wrap_var('Unexpected failure during module execution: %s' % (to_native(e, nonstring='simplerepr'))),
                         exception=to_text(traceback.format_exc()), stdout='', _ansible_no_log=self._play_context.no_log)
-            if self._task.loop_idx is not None:
-                res.update(
-                    _ansible_item_result=True,
-                    _ansible_ignore_errors=self._task.ignore_errors,
-                    _ansible_ignore_unreachable=self._task.ignore_unreachable,
-                )
-            return res
         finally:
             try:
                 self._connection.close()

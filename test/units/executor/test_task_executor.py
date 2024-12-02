@@ -54,7 +54,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=fake_loader,
             shared_loader_obj=mock_shared_loader,
             final_q=mock_queue,
-            variable_manager=MagicMock(),
         )
 
     def test_task_executor_run(self):
@@ -82,7 +81,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=fake_loader,
             shared_loader_obj=mock_shared_loader,
             final_q=mock_queue,
-            variable_manager=MagicMock(),
         )
 
         te._get_loop_items = MagicMock(return_value=None)
@@ -100,8 +98,9 @@ class TestTaskExecutor(unittest.TestCase):
         res = te.run()
         self.assertIn("failed", res)
 
+    @unittest.skip("loops out of TE")
     def test_task_executor_run_clean_res(self):
-        te = TaskExecutor(None, MagicMock(), None, None, None, None, None, None, None)
+        te = TaskExecutor(None, MagicMock(), None, None, None, None, None, None)
         te._get_loop_items = MagicMock(return_value=[1])
         te._run_loop = MagicMock(
             return_value=[
@@ -122,6 +121,7 @@ class TestTaskExecutor(unittest.TestCase):
         self.assertIsInstance(data['text'], str)
         self.assertIsInstance(data['int'], int)
 
+    @unittest.skip("loops out of TE")
     def test_task_executor_get_loop_items(self):
         fake_loader = DictDataLoader({})
 
@@ -149,12 +149,12 @@ class TestTaskExecutor(unittest.TestCase):
             loader=fake_loader,
             shared_loader_obj=mock_shared_loader,
             final_q=mock_queue,
-            variable_manager=MagicMock(),
         )
 
         items = te._get_loop_items()
         self.assertEqual(items, ['a', 'b', 'c'])
 
+    @unittest.skip("loops out of TE")
     def test_task_executor_run_loop(self):
         items = ['a', 'b', 'c']
 
@@ -188,7 +188,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=fake_loader,
             shared_loader_obj=mock_shared_loader,
             final_q=mock_queue,
-            variable_manager=MagicMock(),
         )
 
         def _execute(variables):
@@ -209,7 +208,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=DictDataLoader({}),
             shared_loader_obj=MagicMock(),
             final_q=MagicMock(),
-            variable_manager=MagicMock(),
         )
 
         context = MagicMock(resolved=False)
@@ -246,7 +244,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=DictDataLoader({}),
             shared_loader_obj=MagicMock(),
             final_q=MagicMock(),
-            variable_manager=MagicMock(),
         )
 
         context = MagicMock(resolved=False)
@@ -285,7 +282,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=DictDataLoader({}),
             shared_loader_obj=MagicMock(),
             final_q=MagicMock(),
-            variable_manager=MagicMock(),
         )
 
         action_loader = te._shared_loader_obj.action_loader
@@ -370,7 +366,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=fake_loader,
             shared_loader_obj=shared_loader,
             final_q=mock_queue,
-            variable_manager=mock_vm,
         )
 
         te._get_connection = MagicMock(return_value=mock_connection)
@@ -427,7 +422,6 @@ class TestTaskExecutor(unittest.TestCase):
             loader=fake_loader,
             shared_loader_obj=shared_loader,
             final_q=mock_queue,
-            variable_manager=MagicMock(),
         )
 
         te._connection = MagicMock()

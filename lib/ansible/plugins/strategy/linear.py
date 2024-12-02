@@ -16,8 +16,6 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-import traceback
-
 DOCUMENTATION = """
     name: linear
     short_description: Executes tasks in a linear fashion
@@ -32,9 +30,7 @@ DOCUMENTATION = """
 """
 
 from ansible import constants as C
-from ansible.errors import AnsibleError, AnsibleAssertionError, AnsibleParserError, AnsibleSendControllerTaskResult, \
-    AnsibleUndefinedVariable
-from ansible.executor.task_result import TaskResult
+from ansible.errors import AnsibleError, AnsibleAssertionError, AnsibleParserError, AnsibleSendControllerTaskResult
 from ansible.module_utils.common.text.converters import to_text
 from ansible.playbook.handler import Handler
 from ansible.playbook.included_file import IncludedFile
@@ -42,7 +38,6 @@ from ansible.plugins.loader import action_loader
 from ansible.plugins.strategy import StrategyBase
 from ansible.template import Templar
 from ansible.utils.display import Display
-from ansible.utils.unsafe_proxy import wrap_var
 
 display = Display()
 
@@ -150,10 +145,28 @@ class StrategyModule(StrategyBase):
                     new_task = task
                     new_play_context = play_context
                     try:
-                        if task.loop is not None or task.loop_with is not None:
-                            self._unroll_loop(host, task, task_vars, play_context, iterator)
-                            # looped tasks generated, skip to another host, or to generated tasks
-                            continue
+                        loop_e = None
+                        try:
+                            if task.loop is not None or task.loop_with is not None:
+                                self._unroll_loop(host, task, task_vars, play_context, iterator)
+                                continue
+                        except AnsibleSendControllerTaskResult as e:
+                            loop_e = e
+
+                        try:
+                            new_task.name = to_text(templar.template(new_task.name, fail_on_undefined=False), nonstring='empty')
+                        except Exception as e:
+                            display.debug(f"Failed to templalte task name ({new_task.name}), ignoring error and continuing: {e}")
+
+                        if not callback_sent:
+                            if isinstance(new_task, Handler):
+                                self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
+                            else:
+                                self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
+                            callback_sent = True
+
+                        if loop_e:
+                            raise loop_e
 
                         new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
 
@@ -188,93 +201,13 @@ class StrategyModule(StrategyBase):
                                     break
 
                             run_once = action and getattr(action, 'BYPASS_HOST_LOOP', False) or templar.template(new_task.run_once)
-                            try:
-                                new_task.name = to_text(templar.template(new_task.name, fail_on_undefined=False), nonstring='empty')
-                            except Exception as e:
-                                display.debug(f"Failed to templalte task name ({new_task.name}), ignoring error and continuing: {e}")
 
                             if (new_task.any_errors_fatal or run_once) and not new_task.ignore_errors:
                                 any_errors_fatal = True
 
-                            try:
-                                conditional_result, false_condition = new_task.evaluate_conditional_with_result(templar, task_vars)
-                            except AnsibleError as ex:
-                                raise AnsibleSendControllerTaskResult(dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
-                            if not conditional_result:
-                                display.debug("when evaluation is False, skipping this task")
-                                raise AnsibleSendControllerTaskResult(
-                                    dict(changed=False, skipped=True, skip_reason='Conditional result was False',
-                                           false_condition=false_condition, _ansible_no_log=new_play_context.no_log)
-                                )
-                            else:
-                                if not callback_sent:
-                                    if isinstance(new_task, Handler):
-                                        self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
-                                    else:
-                                        self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
-                                    callback_sent = True
-                                self._blocked_hosts[host.get_name()] = True
-
-                                # FIXME move most of the below into _queue_task or elsewhere?
-                                if task_action in C._ACTION_INCLUDE_TASKS:
-                                    include_args = new_task.args.copy()
-                                    include_file = include_args.pop('_raw_params', None)
-                                    if not include_file:
-                                        raise AnsibleSendControllerTaskResult(
-                                            dict(changed=False, failed=True, msg="No include file was specified to the include")
-                                        )
-
-                                    include_file = templar.template(include_file)
-                                    raise AnsibleSendControllerTaskResult(
-                                        dict(changed=False, include=include_file, include_args=include_args))
-                                elif task_action in C._ACTION_INCLUDE_ROLE:
-                                    include_args = new_task.args.copy()
-                                    raise AnsibleSendControllerTaskResult(dict(changed=False, include_args=include_args))
-                                else:
-                                    try:
-                                        new_task.squash()
-                                        new_task.post_validate(templar=templar)
-                                        if variable_params := new_task.args.pop('_variable_params', None):
-                                            if isinstance(variable_params, dict):
-                                                if C.INJECT_FACTS_AS_VARS:
-                                                    display.warning(
-                                                        "Using a variable for a task's 'args' is unsafe in some situations "
-                                                        "(see https://docs.ansible.com/ansible/devel/reference_appendices/faq.html#argsplat-unsafe)")
-                                                variable_params.update(new_task.args)
-                                                new_task.args = variable_params
-                                            else:
-                                                # if we didn't get a dict, it means there's garbage remaining after k=v parsing, just give up
-                                                # see https://github.com/ansible/ansible/issues/79862
-                                                res = dict(failed=True,
-                                                           msg=wrap_var(to_text(f"invalid or malformed argument: '{variable_params}'", nonstring='simplerepr')),
-                                                           _ansible_no_log=new_play_context.no_log)
-                                                # FIXME consolidate _ansible_item_result somewhere
-                                                if new_task.loop_idx is not None:
-                                                    res.update(
-                                                        _ansible_item_result=True,
-                                                        _ansible_ignore_errors=new_task.ignore_errors,
-                                                        _ansible_ignore_unreachable=new_task.ignore_unreachable,
-                                                    )
-                                                raise AnsibleSendControllerTaskResult(res)
-                                    except AnsibleSendControllerTaskResult:
-                                        raise
-                                    except AnsibleError as ex:
-                                        raise AnsibleSendControllerTaskResult(
-                                            dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')),
-                                                _ansible_no_log=new_play_context.no_log))
-                                    except Exception:
-                                        raise AnsibleSendControllerTaskResult(
-                                            dict(
-                                                changed=False,
-                                                failed=True,
-                                                _ansible_no_log=new_play_context.no_log,
-                                                exception=to_text(traceback.format_exc()),
-                                            )
-                                        )
-
-                                    self._queue_task(host, new_task, task_vars, new_play_context)
+                            self._queue_task(host, new_task, task_vars, new_play_context, task_action, templar)
                     except AnsibleSendControllerTaskResult as e:
-                        self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context, callback_sent)
+                        self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
 
                     del task_vars
 

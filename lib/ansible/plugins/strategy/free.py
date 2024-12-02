@@ -16,8 +16,6 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-import traceback
-
 DOCUMENTATION = """
     name: free
     short_description: Executes tasks without waiting for all hosts
@@ -42,7 +40,6 @@ from ansible.plugins.strategy import StrategyBase
 from ansible.template import Templar
 from ansible.module_utils.common.text.converters import to_text
 from ansible.utils.display import Display
-from ansible.utils.unsafe_proxy import wrap_var
 
 display = Display()
 
@@ -145,8 +142,6 @@ class StrategyModule(StrategyBase):
                             if same_tasks >= throttle:
                                 break
 
-                        # advance the host, mark the host blocked, and queue it
-                        self._blocked_hosts[host_name] = True
                         iterator.set_state_for_host(host.name, state)
                         if isinstance(task, Handler):
                             task.remove_host(host)
@@ -176,13 +171,24 @@ class StrategyModule(StrategyBase):
                                                 "executed for every host in the inventory list.")
                         new_task = task
                         new_play_context = play_context
-                        callback_sent = False
                         try:
-                            if task.loop is not None or task.loop_with is not None:
-                                self._unroll_loop(host, task, task_vars, play_context, iterator)
-                                self._blocked_hosts[host_name] = False
-                                continue
+                            loop_e = None
+                            try:
+                                if task.loop is not None or task.loop_with is not None:
+                                    self._unroll_loop(host, task, task_vars, play_context, iterator)
+                                    continue
+                            except AnsibleSendControllerTaskResult as e:
+                                loop_e = e
 
+                            if isinstance(new_task, Handler):
+                                self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
+                            else:
+                                self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
+
+                            if loop_e:
+                                raise loop_e
+
+                            # FIXME callback not sent?
                             new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
 
                             if task.action in C._ACTION_META:
@@ -190,94 +196,20 @@ class StrategyModule(StrategyBase):
                                     meta_task_dummy_results_count += 1
                                     workers_free -= 1
                                 self._execute_meta(new_task, new_play_context, iterator, target_host=host)
-                                self._blocked_hosts[host_name] = False
                             else:
                                 # handle step if needed, skip meta actions as they are used internally
                                 if not self._step or self._take_step(new_task, host_name):
                                     if new_task.any_errors_fatal:
                                         display.warning("Using any_errors_fatal with the free strategy is not supported, "
                                                         "as tasks are executed independently on each host")
-                                    if isinstance(new_task, Handler):
-                                        self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
-                                    else:
-                                        self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
 
-                                    try:
-                                        conditional_result, false_condition = new_task.evaluate_conditional_with_result(templar, task_vars)
-                                    except AnsibleError as ex:
-                                        raise AnsibleSendControllerTaskResult(
-                                            dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr'))))
-                                    if not conditional_result:
-                                        display.debug("when evaluation is False, skipping this task")
-                                        raise AnsibleSendControllerTaskResult(
-                                            dict(changed=False, skipped=True, skip_reason='Conditional result was False',
-                                                 false_condition=false_condition, _ansible_no_log=new_play_context.no_log)
-                                        )
-                                    else:
-                                        if task.action in C._ACTION_INCLUDE_TASKS:
-                                            include_args = new_task.args.copy()
-                                            include_file = include_args.pop('_raw_params', None)
-                                            if not include_file:
-                                                raise AnsibleSendControllerTaskResult(
-                                                    dict(changed=False, failed=True, msg="No include file was specified to the include"))
-
-                                            include_file = templar.template(include_file)
-                                            callback_sent = True
-                                            raise AnsibleSendControllerTaskResult(
-                                                dict(changed=False, include=include_file, include_args=include_args))
-                                        elif task.action in C._ACTION_INCLUDE_ROLE:
-                                            include_args = new_task.args.copy()
-                                            callback_sent = True
-                                            raise AnsibleSendControllerTaskResult(dict(changed=False, include_args=include_args))
-                                        else:
-                                            try:
-                                                new_task.squash()
-                                                new_task.post_validate(templar=templar)
-                                                if variable_params := new_task.args.pop('_variable_params', None):
-                                                    if isinstance(variable_params, dict):
-                                                        if C.INJECT_FACTS_AS_VARS:
-                                                            display.warning(
-                                                                "Using a variable for a task's 'args' is unsafe in some situations "
-                                                                "(see https://docs.ansible.com/ansible/devel/reference_appendices/faq.html#argsplat-unsafe)")
-                                                        variable_params.update(new_task.args)
-                                                        new_task.args = variable_params
-                                                    else:
-                                                        # if we didn't get a dict, it means there's garbage remaining after k=v parsing, just give up
-                                                        # see https://github.com/ansible/ansible/issues/79862
-                                                        res = dict(failed=True,
-                                                                   msg=wrap_var(to_text(f"invalid or malformed argument: '{variable_params}'", nonstring='simplerepr')),
-                                                                   _ansible_no_log=new_play_context.no_log)
-                                                        # FIXME consolidate _ansible_item_result somewhere
-                                                        if new_task.loop_idx is not None:
-                                                            res.update(
-                                                                _ansible_item_result=True,
-                                                                _ansible_ignore_errors=new_task.ignore_errors,
-                                                                _ansible_ignore_unreachable=new_task.ignore_unreachable,
-                                                            )
-                                                        raise AnsibleSendControllerTaskResult(res)
-                                            except AnsibleSendControllerTaskResult:
-                                                raise
-                                            except AnsibleError as ex:
-                                                raise AnsibleSendControllerTaskResult(
-                                                    dict(failed=True, msg=wrap_var(to_text(ex, nonstring='simplerepr')),
-                                                         _ansible_no_log=new_play_context.no_log))
-                                            except Exception:
-                                                raise AnsibleSendControllerTaskResult(
-                                                    dict(
-                                                        changed=False,
-                                                        failed=True,
-                                                        _ansible_no_log=new_play_context.no_log,
-                                                        exception=to_text(traceback.format_exc()),
-                                                    )
-                                                )
-
-                                            self._queue_task(host, new_task, task_vars, new_play_context)
-                                        # each task is counted as a worker being busy
-                                        workers_free -= 1
+                                    self._queue_task(host, new_task, task_vars, new_play_context, task.action, templar)
+                                    # each task is counted as a worker being busy
+                                    workers_free -= 1
                                 del task_vars
                         except AnsibleSendControllerTaskResult as e:
                             workers_free -= 1
-                            self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context, callback_sent)
+                            self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
                     else:
                         display.debug("%s is blocked, skipping for now" % host_name)
 

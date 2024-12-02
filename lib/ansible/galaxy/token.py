@@ -67,9 +67,14 @@ class KeycloakToken(object):
             payload['client_secret'] = self.client_secret
             payload['scope'] = 'api.console'
             payload['grant_type'] = 'client_credentials'
+            if self.access_token:
+                display.warning(
+                    'Found both a client_secret and access_token for galaxy authentication, ignoring access_token'
+                )
         else:
             payload['refresh_token'] = self.access_token
             payload['grant_type'] = 'refresh_token'
+
         return urlencode(payload)
 
     def get(self):
@@ -90,7 +95,7 @@ class KeycloakToken(object):
                             http_agent=user_agent())
         except HTTPError as e:
             raise GalaxyError(e, 'Unable to get access token')
-        display.vvv(f'Authentication successful')
+        display.vvv('Authentication successful')
 
         data = json.load(resp)
 

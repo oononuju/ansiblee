@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 
 from string import ascii_letters, digits
+from threading import Lock
 
 from ansible.config.manager import ConfigManager
 from ansible.module_utils.common.text.converters import to_text
@@ -93,12 +94,14 @@ def __getattr__(config_constant):
     """ Module level 'getter' that populates constants on demand and avoids having to preload them """
 
     if config_constant not in globals():
-        try:
-            value = config.get_config_value(config_constant, variables=globals())
-        except Exception as e:
-            raise AttributeError(e)
+        global c_lock
+        with c_lock:
+            try:
+                value = config.get_config_value(config_constant, variables=globals())
+            except Exception as e:
+                raise AttributeError(e)
 
-        globals()[config_constant] = value
+            globals()[config_constant] = value
 
         # emit any warnings or deprecations
         handle_config_noise()
@@ -270,6 +273,7 @@ MAGIC_VARIABLE_MAPPING = dict(
     become_flags=('ansible_become_flags', ),
 )
 
+c_lock = Lock()
 
 # we always initialize these constants as others depend on them for basic config templating.
 for c in __INITIALIZE:

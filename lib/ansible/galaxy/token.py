@@ -81,6 +81,7 @@ class KeycloakToken(object):
 
         payload = self._form_payload()
 
+        display.vvv(f'Authenticating via {self.auth_url}')
         try:
             resp = open_url(to_native(self.auth_url),
                             data=payload,
@@ -89,12 +90,14 @@ class KeycloakToken(object):
                             http_agent=user_agent())
         except HTTPError as e:
             raise GalaxyError(e, 'Unable to get access token')
+        display.vvv(f'Authentication successful')
 
         data = json.load(resp)
 
         # So that we have a buffer, expire the token in ~2/3 the given value
         expires_in = data['expires_in'] // 3 * 2
         self._expiration = time.time() + expires_in
+        display.vvv(f'Authentication token expires in {expires_in} seconds')
 
         self._token = data.get('access_token')
         if token_type := data.get('token_type'):

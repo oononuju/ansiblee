@@ -5,6 +5,12 @@
 
 # Note: |groupby is already tested by the `groupby_filter` target.
 
+- name: test to_yaml and to_nice_yaml
+  include_tasks: to_yaml.yml
+
+- name: test to_json and to_nice_json
+  include_tasks: to_json.yml
+
 - set_fact:
     output_dir: "{{ lookup('env', 'OUTPUT_DIR') }}"
 
@@ -14,12 +20,6 @@
 
 - debug:
     var: some_registered_var
-
-- name: Verify that we workaround a py26 json bug
-  template:
-    src: py26json.j2
-    dest: "{{ output_dir }}/py26json.templated"
-    mode: 0644
 
 - name: 9851 - Verify that we don't trigger https://github.com/ansible/ansible/issues/9851
   copy:
@@ -326,6 +326,7 @@
     that:
       - '"%Y-%m-%d"|strftime(1585247522) == "2020-03-26"'
       - '"%Y-%m-%d"|strftime("1585247522.0") == "2020-03-26"'
+      - '"%Y-%m-%d"|strftime("1585247522.0", utc=True) == "2020-03-26"'
       - '("%Y"|strftime(None)).startswith("20")' # Current date, can't check much there.
       - strftime_fail is failed
       - '"Invalid value for epoch value" in strftime_fail.msg'
@@ -465,15 +466,11 @@
   ignore_errors: yes
   register: password_hash_2
 
-- name: Verify password_hash
-  assert:
-    that:
-      - "'what in the WORLD is up?'|password_hash|length in (120, 106)"
-      # This throws a vastly different error on py2 vs py3, so we just check
-      # that it's a failure, not a substring of the exception.
-      - password_hash_1 is failed
-      - password_hash_2 is failed
-      - "'is not in the list of supported passlib algorithms' in password_hash_2.msg"
+- name: Verify password_hash throws on weird rounds
+  set_fact:
+    foo: '{{ "hey"|password_hash(rounds=1) }}'
+  ignore_errors: yes
+  register: password_hash_3
 
 - name: test using passlib with an unsupported hash type
   set_fact:
@@ -481,8 +478,16 @@
   ignore_errors: yes
   register: unsupported_hash_type
 
-- assert:
+- name: Verify password_hash
+  assert:
     that:
+      - "'what in the WORLD is up?'|password_hash|length in (120, 106)"
+      - password_hash_1 is failed
+      - "'Failed to encrypt the password' in password_hash_1.msg"
+      - password_hash_2 is failed
+      - "'is not in the list of supported passlib algorithms' in password_hash_2.msg"
+      - password_hash_3 is failed
+      - "'Could not hash the secret' in password_hash_3.msg"
       - "'msdcc is not in the list of supported passlib algorithms' in unsupported_hash_type.msg"
 
 - name: Verify to_uuid throws on weird namespace
@@ -556,6 +561,12 @@
       - not (fail_2 is failed)
       - not (fail_3 is failed)
 
+- name: Check if comment handles style
+  set_fact:
+    comment: "{{ 'boo' | comment(style='s') }}"
+  ignore_errors: yes
+  register: comment_01
+
 - name: Verify comment
   assert:
     that:
@@ -564,6 +575,8 @@
       - '"boo!"|comment(style="cblock") == "/*\n *\n * boo!\n *\n */"'
       - '"boo!"|comment(decoration="") == "boo!\n"'
       - '"boo!"|comment(prefix="\n", prefix_count=20) == "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n# boo!\n#"'
+      - comment_01.failed
+      - "'Invalid option' in comment_01.msg"
 
 - name: Verify subelements throws on invalid obj
   set_fact:
@@ -737,3 +750,20 @@
     splitty:
       - "1,2,3"
       - "4,5,6"
+
+- name: commonpath filter
+  set_fact:
+    msg: "{{ ['/foo/bar/foobar','/foo/bar'] | commonpath }}"
+  register: commonpath_01
+
+- name: commonpath filter raises exception
+  set_fact:
+    msg: "{{ '/foo/bar/foobar' | commonpath }}"
+  register: commonpath_02
+  ignore_errors: yes
+
+- name: Check if commonpath works
+  assert:
+    that:
+      - '"/foo/bar" in commonpath_01.ansible_facts.msg'
+      - "'|commonpath expects' in commonpath_02.msg"

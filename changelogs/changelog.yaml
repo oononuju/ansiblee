@@ -953,6 +953,17 @@ releases:
     - skip-implicit-flush_handlers-no-notify.yml
     - user_ssh_fix.yml
     release_date: '2024-10-29'
+  2.16.14:
+    changes:
+      release_summary: '| Release Date: 2024-12-02
+
+        | `Porting Guide <https://docs.ansible.com/ansible-core/2.16/porting_guides/porting_guide_core_2.16.html>`__
+
+        '
+    codename: All My Love
+    fragments:
+    - 2.16.14_summary.yaml
+    release_date: '2024-12-02'
   2.16.14rc1:
     changes:
       bugfixes:

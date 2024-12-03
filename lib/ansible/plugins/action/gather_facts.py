@@ -71,6 +71,31 @@ class ActionModule(ActionBase):
         # on conflict the last plugin processed wins, but try to do deep merge and append to lists.
         return merge_hash(result, filtered_res, list_merge='append_rp')
 
+    def _handle_smart(self, modules: list, task_vars: dict[str, t.Any]):
+        ''' 'smart' is used to try to lookup netowrk os mappings and ensure we have a 'sane' fact module to execute '''
+
+        modules.pop(modules.index('smart'))
+        network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))
+        if network_os:
+            connection_map = C.config.get_config_value('CONNECTION_FACTS_MODULES', variables=task_vars)
+            if connection_map:
+                # if we have a network OS, setup should not be here and we should get one from default list or configuration
+                for setup_name in C._ACTION_SETUP:
+                    if setup_name in modules:
+                        modules.pop(modules.index(setup_name))
+                modules.append(connection_map.get(network_os))
+            else:
+                if not modules:
+                    raise AnsibleActionFail(f"No fact modules available and we could not find a fact module for your network OS ({network_os}), "
+                                            "try setting one via the `FACTS_MODULES` configuration.")
+                elif not set(modules).difference_update(set(C._ACTION_SETUP)):
+                    # seems crazy but backwards compat
+                    self._display.warning(f"No facts modules for your network OS ({network_os}) were found, defaulting to running `setup`, "
+                                          "but this will return facts from localhost and not the inventory_hostname.")
+        elif not set(modules).difference_update(set(C._ACTION_SETUP)):
+            # no network OS and setup not in list, add setup by default
+            modules.append('ansible.legacy.setup')
+
     def run(self, tmp: t.Optional[str] = None, task_vars: t.Optional[dict[str, t.Any]] = None) -> dict[str, t.Any]:
 
         result = super(ActionModule, self).run(tmp, task_vars)
@@ -78,22 +103,10 @@ class ActionModule(ActionBase):
 
         # copy the value with list() so we don't mutate the config
         modules = list(C.config.get_config_value('FACTS_MODULES', variables=task_vars))
+        if 'smart' in modules:
+            self._handle_smart(modules, task_vars)
 
         parallel = task_vars.pop('ansible_facts_parallel', self._task.args.pop('parallel', None))
-        if 'smart' in modules:
-            modules.pop(modules.index('smart'))
-            network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))
-            if network_os:
-                # if we have a network OS, setup should not be here and we should get one from default list or configuration
-                for setup_name in C._ACTION_SETUP:
-                    if setup_name in modules:
-                        modules.pop(modules.index(setup_name))
-                connection_map = C.config.get_config_value('CONNECTION_FACTS_MODULES', variables=task_vars)
-                if connection_map:
-                    modules.append(connection_map.get(network_os))
-
-                if not modules:
-                    raise AnsibleActionFail(f"We could not find a fact module for your network OS: {network_os}, try the `FACTS_MODULES` setting.")
 
         failed = {}
         skipped = {}

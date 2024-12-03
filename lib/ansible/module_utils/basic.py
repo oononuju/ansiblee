@@ -399,7 +399,7 @@ class AnsibleModule(object):
         self._legal_inputs = []
         self._options_context = list()
         self._tmpdir = None
-        self._module_env = {}
+        self._module_env = []
 
         if add_file_common_args:
             for k, v in FILE_COMMON_ARGUMENTS.items():

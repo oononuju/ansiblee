@@ -34,6 +34,7 @@ BUFSIZE = 65536
 P = t.ParamSpec('P')
 T = t.TypeVar('T')
 
+
 class ConnectionKwargs(t.TypedDict):
     task_uuid: str
     ansible_playbook_pid: str

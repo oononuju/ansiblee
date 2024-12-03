@@ -89,6 +89,26 @@ class ActionBase(ABC):
 
         self._found = {}
 
+    def _ensure_invocation(self, result):
+
+        need_invocation = bool(display.verbosity or C.DEFAULT_DEBUG)
+        if need_invocation and 'invocation' not in result:
+            result['invocation'] = {}
+
+        if isinstance(result.get('invocation'), dict):
+            # we have invocation dict, otherwise it would be censored string already
+            # action plugins/modules might have popuilated
+            if self._task.no_log:
+                result['invocation'] = "CENSORED: no_log is set for this task"
+            else:
+                result["invocation"]['module_args'] = self._task.args.copy()
+
+                # TODO: get no_log list from controller side argspec, example for copy
+                if result['invocation']['module_args'].get('content') is not None:
+                    result['invocation']['module_args']['content'] = 'CENSORED: no_log is set for this parameter'
+
+        return result
+
     @abstractmethod
     def run(self, tmp=None, task_vars=None):
         """ Action Plugins should implement this method to perform their
@@ -107,8 +127,7 @@ class ActionBase(ABC):
         * Module parameters.  These are stored in self._task.args
         """
 
-        # does not default to {'changed': False, 'failed': False}, as it breaks async
-        result = {}
+        result = {'changed': False, 'failed': False}
 
         if tmp is not None:
             result['warning'] = ['ActionModule.run() no longer honors the tmp parameter. Action'
@@ -131,7 +150,7 @@ class ActionBase(ABC):
         if self._connection._shell.tmpdir is None and self._early_needs_tmp_path():
             self._make_tmp_path()
 
-        return result
+        return self._ensure_invocation(result)
 
     def validate_argument_spec(self, argument_spec=None,
                                mutually_exclusive=None,

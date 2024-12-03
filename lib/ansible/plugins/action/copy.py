@@ -414,7 +414,7 @@ class ActionModule(ActionBase):
 
         # ensure user is not setting internal parameters
         for internal in ('_original_basename', '_diff_peek'):
-            if self._task.args.get(internal, False):
+            if self._task.args.get(internal, None) is not None:
                 raise AnsibleOptionsError(f'Invalid parameter specified: "{internal}"')
 
         source = self._task.args.get('src', None)

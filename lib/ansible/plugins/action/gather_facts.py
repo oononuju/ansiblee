@@ -88,11 +88,11 @@ class ActionModule(ActionBase):
                 if not modules:
                     raise AnsibleActionFail(f"No fact modules available and we could not find a fact module for your network OS ({network_os}), "
                                             "try setting one via the `FACTS_MODULES` configuration.")
-                elif not set(modules).difference_update(set(C._ACTION_SETUP)):
+                elif not set(modules).difference(set(C._ACTION_SETUP)):
                     # seems crazy but backwards compat
                     self._display.warning(f"No facts modules for your network OS ({network_os}) were found, defaulting to running `setup`, "
                                           "but this will return facts from localhost and not the inventory_hostname.")
-        elif not set(modules).difference_update(set(C._ACTION_SETUP)):
+        elif not set(modules).difference(set(C._ACTION_SETUP)):
             # no network OS and setup not in list, add setup by default
             modules.append('ansible.legacy.setup')
 

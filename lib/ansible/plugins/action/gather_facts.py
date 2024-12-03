@@ -93,7 +93,7 @@ class ActionModule(ActionBase):
                     modules.append(connection_map.get(network_os))
 
                 if not modules:
-                    raise AnsibleActionFail(f"We could not find a fact module for your network OS: {network_os}, try setting the `FACTS_MODULES` configuration.")
+                    raise AnsibleActionFail(f"We could not find a fact module for your network OS: {network_os}, try the `FACTS_MODULES` setting.")
 
         failed = {}
         skipped = {}

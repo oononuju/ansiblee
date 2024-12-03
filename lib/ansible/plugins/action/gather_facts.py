@@ -8,6 +8,7 @@ import time
 import typing as t
 
 from ansible import constants as C
+from ansible.errors import AnsibleActionFail
 from ansible.executor.module_common import get_action_args_with_defaults
 from ansible.module_utils.parsing.convert_bool import boolean
 from ansible.plugins.action import ActionBase
@@ -80,10 +81,19 @@ class ActionModule(ActionBase):
 
         parallel = task_vars.pop('ansible_facts_parallel', self._task.args.pop('parallel', None))
         if 'smart' in modules:
-            connection_map = C.config.get_config_value('CONNECTION_FACTS_MODULES', variables=task_vars)
-            network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))
-            modules.extend([connection_map.get(network_os or self._connection.ansible_name, 'ansible.legacy.setup')])
             modules.pop(modules.index('smart'))
+            network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))
+            if network_os:
+                # if we have a network OS, setup should not be here and we should get one from default list or configuration
+                for setup_name in C._ACTION_SETUP:
+                    if setup_name in modules:
+                        modules.pop(modules.index(setup_name))
+                connection_map = C.config.get_config_value('CONNECTION_FACTS_MODULES', variables=task_vars)
+                if connection_map:
+                    modules.append(connection_map.get(network_os))
+
+                if not modules:
+                    raise AnsibleActionFail(f"We could not find a fact module for your network OS: {network_os}, try setting the `FACTS_MODULES` configuration.")
 
         failed = {}
         skipped = {}

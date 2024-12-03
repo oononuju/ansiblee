@@ -418,8 +418,9 @@ class AnsibleModule(object):
         self._set_internal_properties()
 
         # setup env based on private env vars
-        for varname in self._module_env.keys():
-            os.environ[varname] = self._module_env[varname]
+        for hashes in self._module_env:
+            for varname in hashes.keys():
+                os.environ[varname] = self._module_env[varname]
 
         self.validator = ModuleArgumentSpecValidator(self.argument_spec,
                                                      self.mutually_exclusive,

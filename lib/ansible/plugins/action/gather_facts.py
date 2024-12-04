@@ -62,6 +62,7 @@ class ActionModule(ActionBase):
         return mod_args
 
     def _combine_task_result(self, result: dict[str, t.Any], task_result: dict[str, t.Any]) -> dict[str, t.Any]:
+        """ builds the final result to return """
         filtered_res = {
             'ansible_facts': task_result.get('ansible_facts', {}),
             'warnings': task_result.get('warnings', []),
@@ -72,7 +73,10 @@ class ActionModule(ActionBase):
         return merge_hash(result, filtered_res, list_merge='append_rp')
 
     def _handle_smart(self, modules: list, task_vars: dict[str, t.Any]):
-        ''' 'smart' is used to try to lookup network os mappings and ensure we have a correct fact module to execute '''
+        """ Updates the module list and assumes 'smart' is used, will  try to lookup network os mappings and ensure we have a 'sane' fact module to execute """
+
+        if 'smart' not in modules:
+            return
 
         modules.pop(modules.index('smart'))
         network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))
@@ -103,8 +107,7 @@ class ActionModule(ActionBase):
 
         # copy the value with list() so we don't mutate the config
         modules = list(C.config.get_config_value('FACTS_MODULES', variables=task_vars))
-        if 'smart' in modules:
-            self._handle_smart(modules, task_vars)
+        self._handle_smart(modules, task_vars)
 
         parallel = task_vars.pop('ansible_facts_parallel', self._task.args.pop('parallel', None))
 

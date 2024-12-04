@@ -299,7 +299,7 @@ class ActionBase(ABC):
                                                                                                                          variables=task_vars),
                                                                             async_timeout=self._task.async_val,
                                                                             environment=final_environment,
-                                                                            remote_is_local=bool(getattr(self._connection, '_remote_is_local', False)),A
+                                                                            remote_is_local=bool(getattr(self._connection, '_remote_is_local', False)),
                                                                             module_env=self._task.module_environment,
                                                                             **become_kwargs)
                 break
@@ -720,7 +720,7 @@ class ActionBase(ABC):
             # of the other logic below will get run. This is fairly hacky and a
             # corner case, but probably one that shows up pretty often in
             # Solaris-based environments (and possibly others).
-            pass
+            display.debug(f"Ignoring auth failure on chmod: {e!r}")
         else:
             if res['rc'] == 0:
                 return remote_paths

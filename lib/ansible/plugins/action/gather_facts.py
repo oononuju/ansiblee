@@ -72,7 +72,7 @@ class ActionModule(ActionBase):
         return merge_hash(result, filtered_res, list_merge='append_rp')
 
     def _handle_smart(self, modules: list, task_vars: dict[str, t.Any]):
-        ''' 'smart' is used to try to lookup netowrk os mappings and ensure we have a 'sane' fact module to execute '''
+        ''' 'smart' is used to try to lookup network os mappings and ensure we have a correct fact module to execute '''
 
         modules.pop(modules.index('smart'))
         network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))

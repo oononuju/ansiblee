@@ -121,7 +121,7 @@
       assert:
         that:
           - peek is failed
-          - "'_diff_peek' in msg"
+          - "'_diff_peek' in peek['msg']"
 
   always:
     - name: Cleaning

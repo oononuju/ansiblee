@@ -1069,12 +1069,14 @@ def _add_module_to_zip(zf, date_time, remote_module_fqn, b_module_data):
 
 
 def _find_module_utils(module_name, b_module_data, module_path, module_args, task_vars, templar, module_compression, async_timeout, become,
-                       become_method, become_user, become_password, become_flags, environment, remote_is_local=False):
+                       become_method, become_user, become_password, become_flags, environment, remote_is_local=False, module_env=None):
     """
     Given the source of the module, convert it to a Jinja2 template to insert
     module code and return whether it's a new or old style module.
     """
     module_substyle = module_style = 'old'
+    if module_env is None:
+        module_env = {}
 
     # module_style is something important to calling code (ActionBase).  It
     # determines how arguments are formatted (json vs k=v) and whether
@@ -1089,7 +1091,8 @@ def _find_module_utils(module_name, b_module_data, module_path, module_args, tas
         # we substitute "from ansible.module_utils basic" for REPLACER
         module_style = 'new'
         module_substyle = 'python'
-        b_module_data = b_module_data.replace(REPLACER, b'from ansible.module_utils.basic import *')
+        replacer_header = ['from ansible.module_utils.basic import *', '', 'import os', '', f'os.environ.update({module_env})']
+        b_module_data = b_module_data.replace(REPLACER, to_bytes('\n'.join(replacer_header)))
     elif NEW_STYLE_PYTHON_MODULE_RE.search(b_module_data):
         module_style = 'new'
         module_substyle = 'python'
@@ -1287,7 +1290,7 @@ def _find_module_utils(module_name, b_module_data, module_path, module_args, tas
         # create the common exec wrapper payload and set that as the module_data
         # bytes
         b_module_data = ps_manifest._create_powershell_wrapper(
-            b_module_data, module_path, module_args, environment,
+            b_module_data, module_path, module_args, environment.update(module_env),
             async_timeout, become, become_method, become_user, become_password,
             become_flags, module_substyle, task_vars, remote_module_fqn
         )
@@ -1338,7 +1341,7 @@ def _extract_interpreter(b_module_data):
 
 
 def modify_module(module_name, module_path, module_args, templar, task_vars=None, module_compression='ZIP_STORED', async_timeout=0, become=False,
-                  become_method=None, become_user=None, become_password=None, become_flags=None, environment=None, remote_is_local=False):
+                  become_method=None, become_user=None, become_password=None, become_flags=None, environment=None, remote_is_local=False, module_env=None):
     """
     Used to insert chunks of code into modules before transfer rather than
     doing regular python imports.  This allows for more efficient transfer in
@@ -1370,7 +1373,7 @@ def modify_module(module_name, module_path, module_args, templar, task_vars=None
     (b_module_data, module_style, shebang) = _find_module_utils(module_name, b_module_data, module_path, module_args, task_vars, templar, module_compression,
                                                                 async_timeout=async_timeout, become=become, become_method=become_method,
                                                                 become_user=become_user, become_password=become_password, become_flags=become_flags,
-                                                                environment=environment, remote_is_local=remote_is_local)
+                                                                environment=environment, remote_is_local=remote_is_local, module_env=module_env)
 
     if module_style == 'binary':
         return (b_module_data, module_style, to_text(shebang, nonstring='passthru'))

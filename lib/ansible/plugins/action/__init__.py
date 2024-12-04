@@ -299,7 +299,8 @@ class ActionBase(ABC):
                                                                                                                          variables=task_vars),
                                                                             async_timeout=self._task.async_val,
                                                                             environment=final_environment,
-                                                                            remote_is_local=bool(getattr(self._connection, '_remote_is_local', False)),
+                                                                            remote_is_local=bool(getattr(self._connection, '_remote_is_local', False)),A
+                                                                            module_env=self._task.module_environment,
                                                                             **become_kwargs)
                 break
             except InterpreterDiscoveryRequiredError as idre:

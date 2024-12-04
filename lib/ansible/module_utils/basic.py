@@ -399,7 +399,7 @@ class AnsibleModule(object):
         self._legal_inputs = []
         self._options_context = list()
         self._tmpdir = None
-        self._module_env = []
+        self._module_env = {}
 
         if add_file_common_args:
             for k, v in FILE_COMMON_ARGUMENTS.items():
@@ -419,9 +419,7 @@ class AnsibleModule(object):
 
         # setup env based on module env vars if we have any
         if self._module_env:
-            for env_vars in self._module_env:
-                for varname in env_vars.keys():
-                    os.environ[varname] = env_vars[varname]
+            os.environ.update(self._module_env)
 
         self.validator = ModuleArgumentSpecValidator(self.argument_spec,
                                                      self.mutually_exclusive,

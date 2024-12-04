@@ -1,0 +1,3 @@
+---
+bugfixes:
+  - csvfile - various fixes in lookup plugin.

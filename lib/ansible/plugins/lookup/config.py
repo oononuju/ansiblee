@@ -103,7 +103,7 @@ def _get_plugin_config(pname, ptype, config, variables):
     except AnsibleError as e:
         msg = to_native(e)
         if 'was not defined' in msg:
-            raise AnsibleOptionsError(msg, orig_exc=e)
+            raise AnsibleOptionsError(msg) from e
         raise e
 
     return result, origin
@@ -115,7 +115,7 @@ def _get_global_config(config):
         if callable(result):
             raise AnsibleLookupError(f'Invalid setting "{config}" attempted')
     except AttributeError as e:
-        raise AnsibleOptionsError(to_native(e), orig_exc=e)
+        raise AnsibleOptionsError(to_native(e)) from e
 
     return result
 
@@ -148,10 +148,10 @@ class LookupModule(LookupBase):
                 else:
                     result = _get_global_config(term)
             except AnsibleOptionsError as e:
-                if missing == 'error':
-                    raise AnsibleLookupError(f'Unable to find setting {term}', orig_exc=e)
                 if missing == 'warn':
                     self._display.warning(f'Skipping, did not find setting {term}')
+                elif missing != 'skip':
+                    raise AnsibleLookupError(f'Unable to find setting {term}') from e
 
             if result is not Sentinel:
                 if show_origin:

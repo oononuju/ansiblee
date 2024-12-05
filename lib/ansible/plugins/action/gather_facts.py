@@ -99,7 +99,6 @@ class ActionModule(ActionBase):
             # no network OS and setup not in list, add setup by default since 'smart'
             modules.append('ansible.legacy.setup')
 
-
     def run(self, tmp: t.Optional[str] = None, task_vars: t.Optional[dict[str, t.Any]] = None) -> dict[str, t.Any]:
 
         result = super(ActionModule, self).run(tmp, task_vars)

@@ -1091,7 +1091,7 @@ def _find_module_utils(module_name, b_module_data, module_path, module_args, tas
         # we substitute "from ansible.module_utils basic" for REPLACER
         module_style = 'new'
         module_substyle = 'python'
-        replacer_header = ['from ansible.module_utils.basic import *', '', 'import os', '', f'os.environ.update({module_env})']
+        replacer_header = ['from ansible.module_utils.basic import *', '', 'import os, json', '', f'os.environ.update({json.dumps(module_env)}))']
         b_module_data = b_module_data.replace(REPLACER, to_bytes('\n'.join(replacer_header)))
     elif NEW_STYLE_PYTHON_MODULE_RE.search(b_module_data):
         module_style = 'new'

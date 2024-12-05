@@ -1,1 +1,6 @@
-192.168.1.224
+
+#10.0.101.112 ansible_user=devop ansible_ssh_private_key_file=~/.ssh/ansible
+#10.0.103.96 ansible_user=devop ansible_ssh_private_key_file=~/.ssh/ansible
+#my 3.90.31.83
+ubuntu@3.90.31.83
+ubuntu@54.82.239.51

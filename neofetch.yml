@@ -1,0 +1,25 @@
+---
+- hosts: all
+  become: true
+  tasks:
+
+  - name: install neifetch
+    ansible.builtin.apt:
+      name: neofetch
+
+  - name: update apache2 index
+    ansible.builtin.apt:
+      update_cache: yes 
+
+  - name: instaling stacee
+    ansible.builtin.apt:
+      name: stacer
+
+  - name: installing sl
+    ansible.builtin.apt:
+      name: sl
+      state: latest
+
+  - name: instaling wget
+    ansible.builtin.apt:
+      name: wget

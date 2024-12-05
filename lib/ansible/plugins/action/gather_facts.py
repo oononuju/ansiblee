@@ -80,25 +80,25 @@ class ActionModule(ActionBase):
 
         modules.pop(modules.index('smart'))
         network_os = self._task.args.get('network_os', task_vars.get('ansible_network_os', task_vars.get('ansible_facts', {}).get('network_os')))
+
         if network_os:
+
             connection_map = C.config.get_config_value('CONNECTION_FACTS_MODULES', variables=task_vars)
-            if connection_map:
-                # if we have a network OS, setup should not be here and we should get one from default list or configuration
-                for setup_name in C._ACTION_SETUP:
-                    if setup_name in modules:
-                        modules.pop(modules.index(setup_name))
-                modules.append(connection_map.get(network_os))
-            else:
-                if not modules:
-                    raise AnsibleActionFail(f"No fact modules available and we could not find a fact module for your network OS ({network_os}), "
-                                            "try setting one via the `FACTS_MODULES` configuration.")
-                elif not set(modules).difference(set(C._ACTION_SETUP)):
-                    # seems crazy but backwards compat
-                    self._display.warning(f"No facts modules for your network OS ({network_os}) were found, defaulting to running `setup`, "
-                                          "but this will return facts from localhost and not the inventory_hostname.")
+            if network_os in connection_map:
+                modules.append(connection_map[network_os])
+            elif not modules:
+                raise AnsibleActionFail(f"No fact modules available and we could not find a fact module for your network OS ({network_os}), "
+                                        "try setting one via the `FACTS_MODULES` configuration.")
+
+            if set(modules).intersection(set(C._ACTION_SETUP)):
+                # most don't realize how setup works with networking connection plugins (forced_local)
+                self._display.warning("Detected `setup` module and a network OS is set, the output when running it will reflect 'localhost'"
+                                      " and not the target when a netwoking connection plugin is used.")
+
         elif not set(modules).difference(set(C._ACTION_SETUP)):
-            # no network OS and setup not in list, add setup by default
+            # no network OS and setup not in list, add setup by default since 'smart'
             modules.append('ansible.legacy.setup')
+
 
     def run(self, tmp: t.Optional[str] = None, task_vars: t.Optional[dict[str, t.Any]] = None) -> dict[str, t.Any]:
 

@@ -56,12 +56,13 @@ class Vault(VaultBase):
     ansible-vault decrypt data.txt --vault-id ~/.ssh/vault.pem -vvv
     """
 
-    padding = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
     def __init__(self):
 
         if CRYPT_ERROR is not None:
             VaultBase._import_error('cryptography', CRYPT_ERROR)
+
+        self.padding = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
     def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
@@ -77,7 +78,7 @@ class Vault(VaultBase):
                 raise ValueError(f"Could not load vault secret public key, as ssh: {e!r}.\n Nor as pem: {e2!r}")
 
         if hasattr(public_key, 'encrypt'):
-            encrypted_text = public_key.encrypt(plaintext, Vault.padding)
+            encrypted_text = public_key.encrypt(plaintext, self.padding)
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to encrypt")
 
@@ -99,4 +100,4 @@ class Vault(VaultBase):
         else:
             raise ValueError(f"Cannot use key of type '{type(private_key)}' to decrypt")
 
-        return private_key.decrypt(cipher_text, Vault.padding)
+        return private_key.decrypt(cipher_text, self.padding)

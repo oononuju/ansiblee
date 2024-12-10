@@ -33,7 +33,6 @@ from ansible.parsing import vault
 
 from units.mock.loader import DictDataLoader
 from units.mock.vault_helper import TextVaultSecret
-from units.parsing.vault.methods.rot13 import patch_rot13_import
 
 from ansible.parsing.vault import AnsibleVaultFormatError, AnsibleVaultError
 

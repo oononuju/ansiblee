@@ -69,7 +69,6 @@ except Exception as e:
     CRYPT_IMPORT_ERROR = e
 
 from ansible.utils.display import Display
-from ansible.module_utils.basic import missing_required_lib
 
 
 from ansible.parsing.vault import VaultSecret

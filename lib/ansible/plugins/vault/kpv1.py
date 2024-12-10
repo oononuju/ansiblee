@@ -23,13 +23,12 @@ try:
     from cryptography.hazmat.primitives.asymmetric import padding
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_pem_private_key, load_ssh_public_key, load_ssh_private_key
-    HAS_CRYPT = True
+    CRYPT_ERROR = None
 except Exception as e:
     # no import error as sometimes with FIPS weird exception types issued
-    HAS_CRYPT = False
+    CRYPT_ERROR = e
 
 from ansible.plugins.vault import VaultBase
-from ansible.module_utils.basic import missing_required_lib
 
 if t.TYPE_CHECKING:
     from ansible.parsing.vault import VaultSecret
@@ -59,10 +58,12 @@ class Vault(VaultBase):
 
     padding = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
-    def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
+    def __init__(self):
 
-        if not HAS_CRYPT:
-            missing_required_lib('cryptography')
+        if CRYPT_ERROR is not None:
+            VaultBase._import_error('cryptography', CRYPT_ERROR)
+
+    def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
         NoParams(**options)
 
@@ -83,9 +84,6 @@ class Vault(VaultBase):
         return base64.b64encode(encrypted_text)
 
     def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
-
-        if not HAS_CRYPT:
-            missing_required_lib('cryptography')
 
         b_key = secret.bytes
         try:

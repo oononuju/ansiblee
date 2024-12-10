@@ -10,11 +10,9 @@ import importlib.resources
 
 import pytest
 
-from ansible.parsing.vault import methods, VaultLib, VaultSecret, parse_vaulttext_envelope
+from ansible.parsing.vault import VaultLib, VaultSecret, parse_vaulttext_envelope
 
 from . import decrypt_test_data
-
-from .methods.rot13 import patch_rot13_import
 
 
 def get_method_names() -> list[str]:

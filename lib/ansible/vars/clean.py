@@ -1,9 +1,7 @@
 # Copyright (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# Make coding more python3-ish
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import os
 import re
@@ -96,9 +94,9 @@ def strip_internal_keys(dirty, exceptions=None):
 
 
 def remove_internal_keys(data):
-    '''
+    """
     More nuanced version of strip_internal_keys
-    '''
+    """
     for key in list(data.keys()):
         if (key.startswith('_ansible_') and key != '_ansible_parsed') or key in C.INTERNAL_RESULT_KEYS:
             display.warning("Removed unexpected internal key in module return: %s = %s" % (key, data[key]))
@@ -116,7 +114,7 @@ def remove_internal_keys(data):
 
 
 def clean_facts(facts):
-    ''' remove facts that can override internal keys or otherwise deemed unsafe '''
+    """ remove facts that can override internal keys or otherwise deemed unsafe """
     data = module_response_deepcopy(facts)
 
     remove_keys = set()
@@ -159,7 +157,7 @@ def clean_facts(facts):
 
 
 def namespace_facts(facts):
-    ''' return all facts inside 'ansible_facts' w/o an ansible_ prefix '''
+    """ return all facts inside 'ansible_facts' w/o an ansible_ prefix """
     deprefixed = {}
     for k in facts:
         if k.startswith('ansible_') and k not in ('ansible_local',):

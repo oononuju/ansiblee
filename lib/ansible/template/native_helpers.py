@@ -1,16 +1,14 @@
 # Copyright: (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# Make coding more python3-ish
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 
 import ast
 from itertools import islice, chain
 from types import GeneratorType
 
-from ansible.module_utils._text import to_text
+from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.six import string_types
 from ansible.parsing.yaml.objects import AnsibleVaultEncryptedUnicode
 from ansible.utils.native_jinja import NativeJinjaText
@@ -67,7 +65,7 @@ def ansible_eval_concat(nodes):
                     )
                 )
             )
-        except (ValueError, SyntaxError, MemoryError):
+        except (TypeError, ValueError, SyntaxError, MemoryError):
             pass
 
     return out
@@ -129,7 +127,7 @@ def ansible_native_concat(nodes):
             # parse the string ourselves without removing leading spaces/tabs.
             ast.parse(out, mode='eval')
         )
-    except (ValueError, SyntaxError, MemoryError):
+    except (TypeError, ValueError, SyntaxError, MemoryError):
         return out
 
     if isinstance(evaled, string_types):

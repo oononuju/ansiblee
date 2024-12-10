@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import sys
 import glob
@@ -83,7 +82,10 @@ class FcWwnInitiatorFactCollector(BaseFactCollector):
                                         fc_facts['fibre_channel_wwn'].append(data[-1].rstrip())
         elif sys.platform.startswith('hp-ux'):
             cmd = module.get_bin_path('ioscan')
-            fcmsu_cmd = module.get_bin_path('fcmsutil', opt_dirs=['/opt/fcms/bin'])
+            fcmsu_cmd = module.get_bin_path(
+                'fcmsutil',
+                opt_dirs=['/opt/fcms/bin'],
+            )
             # go ahead if we have both commands available
             if cmd and fcmsu_cmd:
                 # ioscan / get list of available fibre-channel devices (fcd)

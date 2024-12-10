@@ -15,9 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-# Make coding more python3-ish
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import os
 import sys
@@ -28,7 +26,7 @@ from multiprocessing.queues import Queue
 
 from ansible.errors import AnsibleConnectionFailure, AnsibleError
 from ansible.executor.task_executor import TaskExecutor
-from ansible.module_utils._text import to_text
+from ansible.module_utils.common.text.converters import to_text
 from ansible.utils.display import Display
 from ansible.utils.multiprocessing import context as multiprocessing_context
 
@@ -49,11 +47,11 @@ class WorkerQueue(Queue):
 
 
 class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defined]
-    '''
+    """
     The worker thread class, which uses TaskExecutor to run tasks
     read from a job queue and pushes results into a results queue
     for reading later.
-    '''
+    """
 
     def __init__(self, final_q, task_vars, host, task, play_context, loader, variable_manager, shared_loader_obj, worker_id):
 
@@ -93,13 +91,13 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
             self._new_stdin = open(os.devnull)
 
     def start(self):
-        '''
+        """
         multiprocessing.Process replaces the worker's stdin with a new file
         but we wish to preserve it if it is connected to a terminal.
         Therefore dup a copy prior to calling the real start(),
         ensuring the descriptor is preserved somewhere in the new child, and
         make sure it is closed in the parent when start() completes.
-        '''
+        """
 
         self._save_stdin()
         # FUTURE: this lock can be removed once a more generalized pre-fork thread pause is in place
@@ -110,12 +108,12 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
                 self._new_stdin.close()
 
     def _hard_exit(self, e):
-        '''
+        """
         There is no safe exception to return to higher level code that does not
         risk an innocent try/except finding itself executing in the wrong
         process. All code executing above WorkerProcess.run() on the stack
         conceptually belongs to another program.
-        '''
+        """
 
         try:
             display.debug(u"WORKER HARD EXIT: %s" % to_text(e))
@@ -128,7 +126,7 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
         os._exit(1)
 
     def run(self):
-        '''
+        """
         Wrap _run() to ensure no possibility an errant exception can cause
         control to return to the StrategyBase task loop, or any other code
         higher in the stack.
@@ -136,7 +134,7 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
         As multiprocessing in Python 2.x provides no protection, it is possible
         a try/except added in far-away code can cause a crashed child process
         to suddenly assume the role and prior state of its parent.
-        '''
+        """
         try:
             return self._run()
         except BaseException as e:
@@ -157,11 +155,11 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
             sys.stdout = sys.stderr = open(os.devnull, 'w')
 
     def _run(self):
-        '''
+        """
         Called when the process is started.  Pushes the result onto the
         results queue. We also remove the host from the blocked hosts list, to
         signify that they are ready for their next task.
-        '''
+        """
 
         # import cProfile, pstats, StringIO
         # pr = cProfile.Profile()
@@ -194,12 +192,27 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
 
             # put the result on the result queue
             display.debug("sending task result for task %s" % self._task._uuid)
-            self._final_q.send_task_result(
-                self._host.name,
-                self._task._uuid,
-                executor_result,
-                task_fields=self._task.dump_attrs(),
-            )
+            try:
+                self._final_q.send_task_result(
+                    self._host.name,
+                    self._task._uuid,
+                    executor_result,
+                    task_fields=self._task.dump_attrs(),
+                )
+            except Exception as e:
+                display.debug(f'failed to send task result ({e}), sending surrogate result')
+                self._final_q.send_task_result(
+                    self._host.name,
+                    self._task._uuid,
+                    # Overriding the task result, to represent the failure
+                    {
+                        'failed': True,
+                        'msg': f'{e}',
+                        'exception': traceback.format_exc(),
+                    },
+                    # The failure pickling may have been caused by the task attrs, omit for safety
+                    {},
+                )
             display.debug("done sending task result for task %s" % self._task._uuid)
 
         except AnsibleConnectionFailure:

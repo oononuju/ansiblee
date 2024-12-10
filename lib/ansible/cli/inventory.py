@@ -4,8 +4,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # PYTHON_ARGCOMPLETE_OK
 
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 # ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
 from ansible.cli import CLI
@@ -18,41 +17,20 @@ from ansible import constants as C
 from ansible import context
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.errors import AnsibleError, AnsibleOptionsError
-from ansible.module_utils._text import to_bytes, to_native, to_text
+from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
 from ansible.utils.vars import combine_vars
 from ansible.utils.display import Display
 from ansible.vars.plugins import get_vars_from_inventory_sources, get_vars_from_path
 
 display = Display()
 
-INTERNAL_VARS = frozenset(['ansible_diff_mode',
-                           'ansible_config_file',
-                           'ansible_facts',
-                           'ansible_forks',
-                           'ansible_inventory_sources',
-                           'ansible_limit',
-                           'ansible_playbook_python',
-                           'ansible_run_tags',
-                           'ansible_skip_tags',
-                           'ansible_verbosity',
-                           'ansible_version',
-                           'inventory_dir',
-                           'inventory_file',
-                           'inventory_hostname',
-                           'inventory_hostname_short',
-                           'groups',
-                           'group_names',
-                           'omit',
-                           'playbook_dir', ])
-
 
 class InventoryCLI(CLI):
-    ''' used to display or dump the configured inventory as Ansible sees it '''
+    """ used to display or dump the configured inventory as Ansible sees it """
 
     name = 'ansible-inventory'
 
-    ARGUMENTS = {'host': 'The name of a host to match in the inventory, relevant when using --list',
-                 'group': 'The name of a group in the inventory, relevant when using --graph', }
+    ARGUMENTS = {'group': 'The name of a group in the inventory, relevant when using --graph', }
 
     def __init__(self, args):
 
@@ -63,8 +41,8 @@ class InventoryCLI(CLI):
 
     def init_parser(self):
         super(InventoryCLI, self).init_parser(
-            usage='usage: %prog [options] [host|group]',
-            epilog='Show Ansible inventory information, by default it uses the inventory script JSON format')
+            usage='usage: %prog [options] [group]',
+            desc='Show Ansible inventory information, by default it uses the inventory script JSON format')
 
         opt_help.add_inventory_options(self.parser)
         opt_help.add_vault_options(self.parser)
@@ -74,7 +52,7 @@ class InventoryCLI(CLI):
         # remove unused default options
         self.parser.add_argument('--list-hosts', help=argparse.SUPPRESS, action=opt_help.UnrecognizedArgument)
 
-        self.parser.add_argument('args', metavar='host|group', nargs='?')
+        self.parser.add_argument('args', metavar='group', nargs='?', help='The name of a group in the inventory, relevant when using --graph')
 
         # Actions
         action_group = self.parser.add_argument_group("Actions", "One of following must be used on invocation, ONLY ONE!")
@@ -95,12 +73,12 @@ class InventoryCLI(CLI):
 
         # list
         self.parser.add_argument("--export", action="store_true", default=C.INVENTORY_EXPORT, dest='export',
-                                 help="When doing an --list, represent in a way that is optimized for export,"
+                                 help="When doing --list, represent in a way that is optimized for export,"
                                       "not as an accurate representation of how Ansible has processed it")
         self.parser.add_argument('--output', default=None, dest='output_file',
                                  help="When doing --list, send the inventory to a file instead of to the screen")
         # self.parser.add_argument("--ignore-vars-plugins", action="store_true", default=False, dest='ignore_vars_plugins',
-        #                          help="When doing an --list, skip vars data from vars plugins, by default, this would include group_vars/ and host_vars/")
+        #                          help="When doing --list, skip vars data from vars plugins, by default, this would include group_vars/ and host_vars/")
 
     def post_process_args(self, options):
         options = super(InventoryCLI, self).post_process_args(options)
@@ -247,7 +225,7 @@ class InventoryCLI(CLI):
     @staticmethod
     def _remove_internal(dump):
 
-        for internal in INTERNAL_VARS:
+        for internal in C.INTERNAL_STATIC_VARS:
             if internal in dump:
                 del dump[internal]
 
@@ -325,7 +303,7 @@ class InventoryCLI(CLI):
             return results
 
         hosts = self.inventory.get_hosts(top.name)
-        results = format_group(top, [h.name for h in hosts])
+        results = format_group(top, frozenset(h.name for h in hosts))
 
         # populate meta
         results['_meta'] = {'hostvars': {}}
@@ -381,7 +359,7 @@ class InventoryCLI(CLI):
 
             return results
 
-        available_hosts = [h.name for h in self.inventory.get_hosts(top.name)]
+        available_hosts = frozenset(h.name for h in self.inventory.get_hosts(top.name))
         return format_group(top, available_hosts)
 
     def toml_inventory(self, top):
@@ -425,7 +403,7 @@ class InventoryCLI(CLI):
 
             return results
 
-        available_hosts = [h.name for h in self.inventory.get_hosts(top.name)]
+        available_hosts = frozenset(h.name for h in self.inventory.get_hosts(top.name))
         results = format_group(top, available_hosts)
 
         return results

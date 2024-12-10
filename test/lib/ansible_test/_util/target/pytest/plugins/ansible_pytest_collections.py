@@ -1,6 +1,5 @@
 """Enable unit testing of Ansible collections. PYTEST_DONT_REWRITE"""
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import os
 
@@ -39,9 +38,6 @@ def enable_assertion_rewriting_hook():  # type: () -> None
     """
     import sys
 
-    if sys.version_info[0] == 2:
-        return  # Python 2.x is not supported
-
     hook_name = '_pytest.assertion.rewrite.AssertionRewritingHook'
     hooks = [hook for hook in sys.meta_path if hook.__class__.__module__ + '.' + hook.__class__.__qualname__ == hook_name]
 
@@ -73,7 +69,7 @@ def enable_assertion_rewriting_hook():  # type: () -> None
     # noinspection PyProtectedMember
     from ansible.utils.collection_loader._collection_finder import _AnsibleCollectionPkgLoaderBase
 
-    _AnsibleCollectionPkgLoaderBase.exec_module = exec_module
+    _AnsibleCollectionPkgLoaderBase.exec_module = exec_module  # type: ignore[method-assign]
 
 
 def pytest_configure():

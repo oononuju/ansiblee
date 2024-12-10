@@ -155,6 +155,7 @@ $tests = @{
         "_ansible_shell_executable": "ignored",
         "_ansible_socket": "ignored",
         "_ansible_syslog_facility": "ignored",
+        "_ansible_target_log_info": "ignored",
         "_ansible_tmpdir": "$($m_tmpdir -replace "\\", "\\")",
         "_ansible_verbosity": 3,
         "_ansible_version": "2.8.0"
@@ -1322,6 +1323,37 @@ test_no_log - Invoked with:
         $actual | Assert-DictionaryEqual -Expected $expected
     }
 
+    "Run with exec wrapper warnings" = {
+        Set-Variable -Name complex_args -Scope Global -Value @{
+            _ansible_exec_wrapper_warnings = [System.Collections.Generic.List[string]]@(
+                'Warning 1',
+                'Warning 2'
+            )
+        }
+        $m = [Ansible.Basic.AnsibleModule]::Create(@(), @{})
+        $m.Warn("Warning 3")
+
+        $failed = $false
+        try {
+            $m.ExitJson()
+        }
+        catch [System.Management.Automation.RuntimeException] {
+            $failed = $true
+            $_.Exception.Message | Assert-Equal -Expected "exit: 0"
+            $actual = [Ansible.Basic.AnsibleModule]::FromJson($_.Exception.InnerException.Output)
+        }
+        $failed | Assert-Equal -Expected $true
+
+        $expected = @{
+            changed = $false
+            invocation = @{
+                module_args = @{}
+            }
+            warnings = @("Warning 1", "Warning 2", "Warning 3")
+        }
+        $actual | Assert-DictionaryEqual -Expected $expected
+    }
+
     "FailJson with message" = {
         $m = [Ansible.Basic.AnsibleModule]::Create(@(), @{})
 
@@ -2251,6 +2283,34 @@ test_no_log - Invoked with:
         $actual.failed | Assert-Equal -Expected $true
         $actual.msg | Assert-Equal -Expected $expected_msg
         $actual.invocation | Assert-DictionaryEqual -Expected @{module_args = $complex_args }
+    }
+
+    "Unsupported options with ignore" = {
+        $spec = @{
+            options = @{
+                option_key = @{
+                    type = "str"
+                }
+            }
+        }
+        Set-Variable -Name complex_args -Scope Global -Value @{
+            option_key = "abc"
+            invalid_key = "def"
+            another_key = "ghi"
+            _ansible_ignore_unknown_opts = $true
+        }
+
+        $m = [Ansible.Basic.AnsibleModule]::Create(@(), $spec)
+        $m.Params | Assert-DictionaryEqual -Expected @{ option_key = "abc"; invalid_key = "def"; another_key = "ghi" }
+        try {
+            $m.ExitJson()
+        }
+        catch [System.Management.Automation.RuntimeException] {
+            $output = [Ansible.Basic.AnsibleModule]::FromJson($_.Exception.InnerException.Output)
+        }
+        $output.Keys.Count | Assert-Equal -Expected 2
+        $output.changed | Assert-Equal -Expected $false
+        $output.invocation | Assert-DictionaryEqual -Expected @{module_args = @{option_key = "abc"; invalid_key = "def"; another_key = "ghi" } }
     }
 
     "Check mode and module doesn't support check mode" = {

@@ -2,18 +2,17 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 # -*- coding: utf-8 -*-
 
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import pytest
 
 from ansible.executor.module_common import modify_module
 
 
-FAKE_OLD_MODULE = b'''#!/usr/bin/python
+FAKE_OLD_MODULE = b"""#!/usr/bin/python
 import sys
 print('{"result": "%s"}' % sys.executable)
-'''
+"""
 
 
 @pytest.fixture

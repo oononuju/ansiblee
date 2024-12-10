@@ -1,11 +1,10 @@
 #!/usr/bin/python
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
-__metaclass__ = type
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 module: semantic_markup
 short_description: Test semantic markup
 description:
@@ -92,17 +91,17 @@ options:
           - O(bar=bam).
           - O(foo.bar=1).
         type: str
-'''
+"""
 
-EXAMPLES = '''#'''
+EXAMPLES = """#"""
 
-RETURN = r'''
+RETURN = r"""
 bar:
   description: Bar.
   type: int
   returned: success
   sample: 5
-'''
+"""
 
 from ansible.module_utils.basic import AnsibleModule
 

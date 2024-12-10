@@ -56,6 +56,7 @@ from .util import (
     InternalError,
     HostConnectionError,
     ANSIBLE_TEST_TARGET_ROOT,
+    WINDOWS_CONNECTION_VARIABLES,
 )
 
 from .util_common import (
@@ -99,7 +100,6 @@ from .ansible_util import (
 )
 
 from .containers import (
-    CleanupMode,
     HostType,
     get_container_database,
     run_support_container,
@@ -447,7 +447,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
     @property
     def label(self) -> str:
         """Label to apply to resources related to this profile."""
-        return f'{"controller" if self.controller else "target"}-{self.args.session_name}'
+        return f'{"controller" if self.controller else "target"}'
 
     def provision(self) -> None:
         """Provision the host before delegation."""
@@ -462,7 +462,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
             ports=[22],
             publish_ports=not self.controller,  # connections to the controller over SSH are not required
             options=init_config.options,
-            cleanup=CleanupMode.NO,
+            cleanup=False,
             cmd=self.build_init_command(init_config, init_probe),
         )
 
@@ -807,6 +807,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
           - Avoid hanging indefinitely or for an unreasonably long time.
 
         NOTE: The container must have a POSIX-compliant default shell "sh" with a non-builtin "sleep" command.
+              The "sleep" command is invoked through "env" to avoid using a shell builtin "sleep" (if present).
         """
         command = ''
 
@@ -814,7 +815,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
             command += f'{init_config.command} && '
 
         if sleep or init_config.command_privileged:
-            command += 'sleep 60 ; '
+            command += 'env sleep 60 ; '
 
         if not command:
             return None
@@ -838,7 +839,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
         """Check the cgroup v1 systemd hierarchy to verify it is writeable for our container."""
         probe_script = (read_text_file(os.path.join(ANSIBLE_TEST_TARGET_ROOT, 'setup', 'check_systemd_cgroup_v1.sh'))
                         .replace('@MARKER@', self.MARKER)
-                        .replace('@LABEL@', self.label))
+                        .replace('@LABEL@', f'{self.label}-{self.args.session_name}'))
 
         cmd = ['sh']
 
@@ -853,7 +854,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
 
     def create_systemd_cgroup_v1(self) -> str:
         """Create a unique ansible-test cgroup in the v1 systemd hierarchy and return its path."""
-        self.cgroup_path = f'/sys/fs/cgroup/systemd/ansible-test-{self.label}'
+        self.cgroup_path = f'/sys/fs/cgroup/systemd/ansible-test-{self.label}-{self.args.session_name}'
 
         # Privileged mode is required to create the cgroup directories on some hosts, such as Fedora 36 and RHEL 9.0.
         # The mkdir command will fail with "Permission denied" otherwise.
@@ -958,7 +959,7 @@ class DockerProfile(ControllerHostProfile[DockerConfig], SshTargetHostProfile[Do
         """Perform out-of-band setup before delegation."""
         bootstrapper = BootstrapDocker(
             controller=self.controller,
-            python_versions=[self.python.version],
+            python_interpreters={self.python.version: self.python.path},
             ssh_key=SshKey(self.args),
         )
 
@@ -1214,8 +1215,9 @@ class PosixRemoteProfile(ControllerHostProfile[PosixRemoteConfig], RemoteProfile
     def configure(self) -> None:
         """Perform in-band configuration. Executed before delegation for the controller and after delegation for targets."""
         # a target uses a single python version, but a controller may include additional versions for targets running on the controller
-        python_versions = [self.python.version] + [target.python.version for target in self.targets if isinstance(target, ControllerConfig)]
-        python_versions = sorted_versions(list(set(python_versions)))
+        python_interpreters = {self.python.version: self.python.path}
+        python_interpreters.update({target.python.version: target.python.path for target in self.targets if isinstance(target, ControllerConfig)})
+        python_interpreters = {version: python_interpreters[version] for version in sorted_versions(list(python_interpreters.keys()))}
 
         core_ci = self.wait_for_instance()
         pwd = self.wait_until_ready()
@@ -1226,7 +1228,7 @@ class PosixRemoteProfile(ControllerHostProfile[PosixRemoteConfig], RemoteProfile
             controller=self.controller,
             platform=self.config.platform,
             platform_version=self.config.version,
-            python_versions=python_versions,
+            python_interpreters=python_interpreters,
             ssh_key=core_ci.ssh_key,
         )
 
@@ -1366,23 +1368,18 @@ class WindowsRemoteProfile(RemoteProfile[WindowsRemoteConfig]):
         connection = core_ci.connection
 
         variables: dict[str, t.Optional[t.Union[str, int]]] = dict(
-            ansible_connection='winrm',
-            ansible_pipelining='yes',
-            ansible_winrm_server_cert_validation='ignore',
             ansible_host=connection.hostname,
-            ansible_port=connection.port,
+            # ansible_port is intentionally not set using connection.port -- connection-specific variables can set this instead
             ansible_user=connection.username,
-            ansible_password=connection.password,
-            ansible_ssh_private_key_file=core_ci.ssh_key.key,
+            ansible_ssh_private_key_file=core_ci.ssh_key.key,  # required for scenarios which change the connection plugin to SSH
+            ansible_test_connection_password=connection.password,  # required for scenarios which change the connection plugin to require a password
         )
 
-        # HACK: force 2016 to use NTLM + HTTP message encryption
-        if self.config.version == '2016':
-            variables.update(
-                ansible_winrm_transport='ntlm',
-                ansible_winrm_scheme='http',
-                ansible_port='5985',
-            )
+        variables.update(ansible_connection=self.config.connection.split('+')[0])
+        variables.update(WINDOWS_CONNECTION_VARIABLES[self.config.connection])
+
+        if variables.pop('use_password'):
+            variables.update(ansible_password=connection.password)
 
         return variables
 

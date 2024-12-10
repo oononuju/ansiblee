@@ -3,8 +3,7 @@
 # (c) 2016 Toshio Kuratomi <tkuratomi@ansible.com>
 # Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
+from __future__ import annotations
 
 import codecs
 import datetime
@@ -168,7 +167,7 @@ def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
                 handler, otherwise it will use replace.
             :surrogate_then_replace: Does the same as surrogate_or_replace but
                 `was added for symmetry with the error handlers in
-                :func:`ansible.module_utils._text.to_bytes` (Added in Ansible 2.3)
+                :func:`ansible.module_utils.common.text.converters.to_bytes` (Added in Ansible 2.3)
 
         Because surrogateescape was added in Python3 this usually means that
         Python3 will use `surrogateescape` and Python2 will use the fallback
@@ -179,7 +178,7 @@ def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
 
         The default until Ansible-2.2 was `surrogate_or_replace`
         In Ansible-2.3 this defaults to `surrogate_then_replace` for symmetry
-        with :func:`ansible.module_utils._text.to_bytes` .
+        with :func:`ansible.module_utils.common.text.converters.to_bytes` .
     :kwarg nonstring: The strategy to use if a nonstring is specified in
         ``obj``.  Default is 'simplerepr'.  Valid values are:
 
@@ -279,11 +278,11 @@ def jsonify(data, **kwargs):
 
 
 def container_to_bytes(d, encoding='utf-8', errors='surrogate_or_strict'):
-    ''' Recursively convert dict keys and values to byte str
+    """ Recursively convert dict keys and values to byte str
 
         Specialized for json return because this only handles, lists, tuples,
         and dict container types (the containers that the json module returns)
-    '''
+    """
 
     if isinstance(d, text_type):
         return to_bytes(d, encoding=encoding, errors=errors)

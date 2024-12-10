@@ -28,7 +28,7 @@ from io import BytesIO, TextIOWrapper
 import yaml
 import yaml.reader
 
-from ansible.module_utils._text import to_text
+from ansible.module_utils.common.text.converters import to_text
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.common.yaml import SafeLoader
 from ansible.module_utils.six import string_types
@@ -192,7 +192,7 @@ def compare_unordered_lists(a, b):
       - unordered lists
       - unhashable elements
     """
-    return len(a) == len(b) and all(x in b for x in a)
+    return len(a) == len(b) and all(x in b for x in a) and all(x in a for x in b)
 
 
 class NoArgsAnsibleModule(AnsibleModule):

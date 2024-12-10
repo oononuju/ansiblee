@@ -79,7 +79,7 @@ class AnsibleDocTest(SanitySingleVersion):
                 plugin_parts = os.path.relpath(plugin_file_path, plugin_path).split(os.path.sep)
                 plugin_name = os.path.splitext(plugin_parts[-1])[0]
 
-                if plugin_name.startswith('_'):
+                if plugin_name.startswith('_') and not data_context().content.collection:
                     plugin_name = plugin_name[1:]
 
                 plugin_fqcn = data_context().content.prefix + '.'.join(plugin_parts[:-1] + [plugin_name])
@@ -112,6 +112,9 @@ class AnsibleDocTest(SanitySingleVersion):
                 if stderr:
                     summary = 'Output on stderr from ansible-doc is considered an error.\n\n%s' % SubprocessError(cmd, stderr=stderr)
                     return SanityFailure(self.name, summary=summary)
+
+                if args.explain:
+                    continue
 
                 plugin_list_json = json.loads(stdout)
                 doc_targets[doc_type] = []

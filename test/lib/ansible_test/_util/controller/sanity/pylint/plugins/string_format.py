@@ -5,10 +5,14 @@
 from __future__ import annotations
 
 import astroid
-from pylint.interfaces import IAstroidChecker
+
+try:
+    from pylint.checkers.utils import check_messages
+except ImportError:
+    from pylint.checkers.utils import only_required_for_messages as check_messages
+
 from pylint.checkers import BaseChecker
 from pylint.checkers import utils
-from pylint.checkers.utils import check_messages
 
 MSGS = {
     'E9305': ("disabled",  # kept for backwards compatibility with inline ignores, remove after 2.14 is EOL
@@ -27,7 +31,6 @@ class AnsibleStringFormatChecker(BaseChecker):
     is valid and the arguments match the format string.
     """
 
-    __implements__ = (IAstroidChecker,)
     name = 'string'
     msgs = MSGS
 

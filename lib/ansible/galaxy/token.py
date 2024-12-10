@@ -47,7 +47,7 @@ class KeycloakToken(object):
 
     token_type = 'Bearer'
 
-    def __init__(self, access_token=None, auth_url=None, validate_certs=True, client_id=None):
+    def __init__(self, access_token=None, auth_url=None, validate_certs=True, client_id=None, client_secret=None):
         self.access_token = access_token
         self.auth_url = auth_url
         self._token = None
@@ -56,8 +56,11 @@ class KeycloakToken(object):
         if self.client_id is None:
             self.client_id = 'cloud-services'
         self._expiration = None
+        self.client_secret = client_secret
 
     def _form_payload(self):
+        if self.client_secret:
+            return 'grant_type=client_credentials&client_id=%s&client_secret=%s&scope=openid api.iam.service_accounts' % (self.client_id, self.client_secret)
         return 'grant_type=refresh_token&client_id=%s&refresh_token=%s' % (self.client_id,
                                                                            self.access_token)
 

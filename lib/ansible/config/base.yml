@@ -1167,7 +1167,7 @@ VAULT_ENCRYPT_SALT:
   default: ~
   description:
     - The salt to use for the vault AES256 encryption method. If it is not provided, a random salt will be used.
-    - This is not recommended to as repeated use of salt/secrets is insecure, but it is here for those that
+    - This is not recommended as repeated use of salt/secrets is insecure, but it is here for those that
       need reproducible outputs, mostly for testing.
     - This does not affect other methods, only AES256.
   env: [{name: ANSIBLE_VAULT_ENCRYPT_SALT}]
@@ -1189,7 +1189,7 @@ VAULT_PLUGIN:
     - name: vault_plugin
   ini:
   - {key: vault_plugin, section: defaults}
-  version_added: '2.18'
+  version_added: '2.19'
 VAULT_PLUGIN_PATH:
   name: Vault plugins path
   default: '{{ ANSIBLE_HOME ~ "/plugins/vault:/usr/share/ansible/plugins/vault" }}'

@@ -689,6 +689,8 @@ class StrategyBase:
             loop_task.loop_control = task_copy.loop_control
             loop_task.loop_vars = item_vars
             loop_task.loop_idx = item_index
+            if isinstance(loop_task, Handler):
+                loop_task.notified_hosts = task.notified_hosts.copy()
             loop_tasks.append(loop_task)
 
         iterator.add_tasks(host, loop_tasks)

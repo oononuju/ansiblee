@@ -35,7 +35,7 @@ def get_decrypt_test_scenarios(method_names: list[str]) -> list[tuple[str, str]]
     return params
 
 
-@pytest.mark.usefixtures(patch_rot13_import.__name__)
+#@pytest.mark.usefixtures(patch_rot13_import.__name__)
 @pytest.mark.parametrize("method_name, scenario", get_decrypt_test_scenarios(get_method_names()))
 def test_fixed_decrypt(method_name: str, scenario: str) -> None:
     with importlib.resources.as_file(importlib.resources.files(decrypt_test_data).joinpath(method_name)) as path:

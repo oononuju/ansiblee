@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+#TODO: move to collection
+
 DOCUMENTATION = """
     name: kpv1
     version_added: "2.4"
@@ -57,7 +59,6 @@ class Vault(VaultBase):
     """
 
     def __init__(self):
-
 
         if CRYPT_ERROR is not None:
             self._padding = None

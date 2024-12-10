@@ -1,4 +1,5 @@
 # (c) 2014, James Tanner <tanner.jc@gmail.com>
+
 # (c) 2014, James Cammarata, <jcammarata@ansible.com>
 #
 # This file is part of Ansible
@@ -39,7 +40,7 @@ c2JiCg==
 """
 
 
-@pytest.mark.usefixtures(patch_rot13_import.__name__)
+#@pytest.mark.usefixtures(patch_rot13_import.__name__)
 class TestVaultEditor(unittest.TestCase):
 
     def setUp(self):

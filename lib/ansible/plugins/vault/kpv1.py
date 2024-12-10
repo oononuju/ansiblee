@@ -17,15 +17,22 @@ DOCUMENTATION = """
 
 import base64
 import dataclasses
-import json
 import typing as t
 
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_pem_private_key, load_ssh_public_key, load_ssh_private_key
+try:
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_pem_private_key, load_ssh_public_key, load_ssh_private_key
+    HAS_CRYPT = True
+except Exception as e:
+    # no import error as sometimes with FIPS weird exception types issued
+    HAS_CRYPT = False
 
-from ansible.parsing.vault import VaultSecret
-from . import VaultBase, VaultSecretError
+from ansible.plugins.vault import VaultBase
+from ansible.module_utils.basic import missing_required_lib
+
+if t.TYPE_CHECKING:
+    from ansible.parsing.vault import VaultSecret
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
@@ -54,6 +61,9 @@ class Vault(VaultBase):
 
     def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
+        if not HAS_CRYPT:
+            missing_required_lib('cryptography')
+
         NoParams(**options)
 
         b_key = secret.bytes
@@ -74,6 +84,9 @@ class Vault(VaultBase):
 
     def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
 
+        if not HAS_CRYPT:
+            missing_required_lib('cryptography')
+
         b_key = secret.bytes
         try:
             private_key = load_pem_private_key(b_key, password=None)
@@ -86,6 +99,6 @@ class Vault(VaultBase):
         if hasattr(private_key, 'decrypt'):
             cipher_text = base64.b64decode(vaulttext)
         else:
-            raise ValueError(f"Cannot use key of type '{type(public_key)}' to decrypt")
+            raise ValueError(f"Cannot use key of type '{type(private_key)}' to decrypt")
 
         return private_key.decrypt(cipher_text, Vault.padding)

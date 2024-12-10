@@ -8,6 +8,7 @@ import functools
 import typing as t
 import sys
 
+from ansible.errors import AnsibleError
 from ansible.parsing.vault import AnsibleVaultPasswordError, VaultSecret
 from ansible.plugins import AnsiblePlugin
 

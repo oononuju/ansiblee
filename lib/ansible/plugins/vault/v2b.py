@@ -47,7 +47,6 @@ DOCUMENTATION = """
 """
 
 import base64
-import dataclasses
 import hashlib
 import hmac  # if we got to sha3 we should switch to kmac
 import json
@@ -81,7 +80,8 @@ class Vault(VaultBase):
             raise VaultSecretError(f"The vault secret must be at least 10 bytes (received {len(secret)}).")
 
         salt = base64.b64decode(salt.encode())
-        derived_key = hashlib.scrypt(secret, salt=salt, n=self.get_option('iterations'), r=self.get_option('block_size'), p=self.get_option('parallelization'), dklen=self.get_option('key_length'))
+        derived_key = hashlib.scrypt(secret, salt=salt, n=self.get_option('iterations'), r=self.get_option('block_size'),
+                                     p=self.get_option('parallelization'), dklen=self.get_option('key_length'))
 
         return base64.urlsafe_b64encode(derived_key)
 

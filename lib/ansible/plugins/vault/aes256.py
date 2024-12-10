@@ -68,7 +68,6 @@ except Exception as e:
     # not using importerror as crypto libraries frequently issue different exceptions, specially under FIPS
     CRYPT_IMPORT_ERROR = e
 
-from ansible.errors import AnsibleError
 from ansible.utils.display import Display
 from ansible.module_utils.basic import missing_required_lib
 
@@ -165,7 +164,6 @@ class Vault(VaultBase):
             options = Vault._V1_OPTIONS
         else:
             options = json.loads(params.decode())
-
 
         # options set from vault itself (or use defaults for legacy)
         self.set_options(direct=options)

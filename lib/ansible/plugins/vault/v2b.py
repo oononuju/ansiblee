@@ -89,10 +89,8 @@ class Vault(VaultBase):
 
     def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
 
-        print(options)
         self.set_options(direct=options)
-        print('2', self.get_options())
-        salt = base64.b64encode(secrets.token_bytes(64)).decode()
+        salt = to_bytes(base64.b64encode(secrets.token_bytes(64)).decode())
 
         data_encryption_key = self._derive_key_encryption_key_from_secret_no_cache(secret.bytes, salt)
         data_encryption_cipher = Fernet(data_encryption_key)

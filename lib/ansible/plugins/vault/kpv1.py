@@ -84,7 +84,7 @@ class Vault(VaultBase):
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to encrypt")
 
-        return base64.b64encode(encrypted_text)
+        return base64.b64encode(encrypted_text).decode()
 
     def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
 

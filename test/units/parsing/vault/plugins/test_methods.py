@@ -10,7 +10,6 @@ from ansible.parsing.vault.methods import VaultSecretError
 
 from ..test_decrypt import get_plugin_names
 
-pytestmark = pytest.mark.usefixtures(patch_rot13_import.__name__)
 vault_loader.add_directory(os.path.dirname(__file__))
 
 

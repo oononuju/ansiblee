@@ -29,7 +29,7 @@ display = Display()
 b_HEADER = b'$ANSIBLE_VAULT'
 SUPPORTED_ENVELOPE_VERSIONS = {b'1.1': 3, b'1.2': 4}
 
-_VAULT_METHOD_CONFIG_KEY: t.Final[str] = 'VAULT_PLUGIN'
+_VAULT_PLUGIN_CONFIG_KEY: t.Final[str] = 'VAULT_PLUGIN'
 
 
 class AnsibleVaultError(AnsibleError):
@@ -96,7 +96,7 @@ def parse_vaulttext_envelope(b_vaulttext_envelope, default_vault_id=None, filena
     When data is saved, it has a header prepended and is formatted into 80
     character lines.  This method extracts the information from the header
     and then removes the header and the inserted newlines.  The string returned
-    is suitable for processing by vault methods.
+    is suitable for processing by vault plugins.
 
     :arg b_vaulttext_envelope: byte str containing the data from a save file
     :kwarg default_vault_id: The vault_id name to use if the vaulttext does not provide one.
@@ -105,7 +105,7 @@ def parse_vaulttext_envelope(b_vaulttext_envelope, default_vault_id=None, filena
         decrypted. This is optional.
     :returns: A tuple of byte str of the vaulttext suitable to pass to parse_vaultext,
         a byte str of the vault format version,
-        the name of the vault method used, and the vault_id.
+        the name of the vault plugin used, and the vault_id.
     :raises: AnsibleVaultFormatError: if the vaulttext_envelope format is invalid
     """
     # used by decrypt
@@ -129,7 +129,7 @@ def parse_vaulttext_envelope(b_vaulttext_envelope, default_vault_id=None, filena
         msg = "Unsupported vault version found {b_version!r}, supported versions are: %s" % b','.join(SUPPORTED_ENVELOPE_VERSIONS.keys())
         raise AnsibleVaultFormatError(msg)
 
-    method_name = to_text(b_tmpheader[2].strip())
+    plugin_name = to_text(b_tmpheader[2].strip())
 
     if header_size != SUPPORTED_ENVELOPE_VERSIONS[b_version]:
         raise AnsibleVaultFormatError("Vault header size mismatch, vault has been tampered with")
@@ -140,14 +140,14 @@ def parse_vaulttext_envelope(b_vaulttext_envelope, default_vault_id=None, filena
 
     b_ciphertext = b''.join(b_tmpdata[1:])
 
-    return b_ciphertext, b_version, method_name, vault_id
+    return b_ciphertext, b_version, plugin_name, vault_id
 
 
-def format_vaulttext_envelope(b_ciphertext, method_name, version=None, vault_id=None):
+def format_vaulttext_envelope(b_ciphertext, plugin_name, version=None, vault_id=None):
     """ Add header and format to 80 columns
 
-        :arg b_ciphertext: the result from Vault encrypt method, as a byte string
-        :arg method_name: string with the method name (for ex, 'AES256', 'v2')
+        :arg b_ciphertext: the result from Vault encrypt plugin, as a byte string
+        :arg plugin_name: string with the plugin name (for ex, 'AES256', 'v2')
         :arg version: string containing the vault header version (for ex, '1.2'). Optional ('1.1' is default)
         :arg vault_id: string representing vault identifier. If provided, the version will be bumped to 1.2.
         :returns: a byte str that should be dumped into a file.  It is the header with the appended ciphertext
@@ -165,11 +165,11 @@ def format_vaulttext_envelope(b_ciphertext, method_name, version=None, vault_id=
 
     b_version = to_bytes(version, 'utf-8', errors='strict')
     b_vault_id = to_bytes(vault_id, 'utf-8', errors='strict')
-    b_method_name = to_bytes(method_name.upper(), 'utf-8', errors='strict')
+    b_plugin_name = to_bytes(plugin_name.upper(), 'utf-8', errors='strict')
 
     header_parts = [b_HEADER,
                     b_version,
-                    b_method_name]
+                    b_plugin_name]
 
     if b_version == b'1.2' and b_vault_id:
         header_parts.append(b_vault_id)
@@ -184,29 +184,19 @@ def format_vaulttext_envelope(b_ciphertext, method_name, version=None, vault_id=
     return b_vaulttext
 
 
-def get_default_vault_method() -> str:
-    """Return the default (configured) vault method name."""
-    return C.config.get_config_value(_VAULT_METHOD_CONFIG_KEY)
-
-
-def describe_vault_methods() -> dict[str, str]:
-    """Return a dictionary describing the available vault methods and their descriptions."""
-    return C.config.get_configuration_definition(_VAULT_METHOD_CONFIG_KEY)['choices']
-
-
-def load_vault_method(method_name: str | None) -> type[VaultBase]:
-    """Loads and returns the method class for a matching method name."""
+def load_vault_plugin(plugin_name: str | None) -> type[VaultBase]:
+    """Loads and returns the plugin class for a matching plugin name."""
     # avoid circular deps
     from ansible.plugins.loader import vault_loader
 
     try:
-        method_name = C.config.get_config_value(_VAULT_METHOD_CONFIG_KEY, direct={_VAULT_METHOD_CONFIG_KEY: method_name})
+        plugin_name = C.config.get_config_value(_VAULT_PLUGIN_CONFIG_KEY, direct={_VAULT_PLUGIN_CONFIG_KEY: plugin_name})
     except AnsibleOptionsError as e:
-        raise AnsibleVaultError(f'Unsupported vault method {method_name!r}') from e
+        raise AnsibleVaultError(f'Unsupported vault plugin {plugin_name!r}') from e
 
-    plugin = vault_loader.get(method_name)
+    plugin = vault_loader.get(plugin_name)
     if not plugin:
-        raise AnsibleError(f"Unable to load vault plugin named {method_name}")
+        raise AnsibleError(f"Unable to load vault plugin named {plugin_name}")
 
     return plugin
 
@@ -237,7 +227,7 @@ class VaultSecret:
         """
         return self._bytes
 
-    @abc.abstractmethod
+    @abc.abstractplugin
     def load(self) -> None:
         pass
 
@@ -519,7 +509,7 @@ class VaultLib:
         self.secrets: list[tuple[str, VaultSecret]] = secrets or []
         self.b_version = b'1.2'
 
-    @staticmethod
+    @staticplugin
     def is_encrypted(vaulttext):
         return is_encrypted(vaulttext)
 
@@ -529,7 +519,7 @@ class VaultLib:
         secret: VaultSecret | None = None,
         vault_id: str | None = None,
         salt: bytes | None = None,
-        method_name: str | None = None,
+        plugin_name: str | None = None,
     ) -> bytes:
         """Vault encrypt a piece of data.
 
@@ -553,7 +543,7 @@ class VaultLib:
         if is_encrypted(b_plaintext):
             raise AnsibleError("input is already encrypted")
 
-        this_method = load_vault_method(method_name)
+        this_plugin = load_vault_plugin(plugin_name)
 
         # encrypt data
         if vault_id:
@@ -564,17 +554,17 @@ class VaultLib:
         options: dict[str, t.Any] = {}
 
         if salt:
-            options = dict(salt=to_text(salt))  # backwards compatibility for AES256 which allows a salt to be provided
+            options['salt'] = to_text(salt)  # backwards compatibility for AES256 which allows a salt to be provided
 
         try:
             # In the future eliminate to_bytes calls
-            b_ciphertext = to_bytes(this_method.encrypt(b_plaintext, secret, options))
+            b_ciphertext = to_bytes(this_plugin.encrypt(b_plaintext, secret, options))
         except (ValueError, TypeError) as e:
             raise AnsibleVaultFormatError from e
 
         # format the data for output to the file
         b_vaulttext = format_vaulttext_envelope(b_ciphertext,
-                                                this_method.__module__.rpartition('.')[-1],
+                                                this_plugin.__module__.rpartition('.')[-1],
                                                 vault_id=vault_id)
         return b_vaulttext
 
@@ -617,10 +607,10 @@ class VaultLib:
                 msg += "%s is not a vault encrypted file" % to_native(filename)
             raise AnsibleError(msg)
 
-        b_vaulttext, dummy, method_name, vault_id = parse_vaulttext_envelope(b_vaulttext, filename=filename)
+        b_vaulttext, dummy, plugin_name, vault_id = parse_vaulttext_envelope(b_vaulttext, filename=filename)
 
-        # create the method object used to decrypt, which can differ from the method used to encrypt
-        this_method = load_vault_method(method_name.lower())
+        # create the plugin object used to decrypt, which can differ from the plugin used to encrypt
+        this_plugin = load_vault_plugin(plugin_name.lower())
 
         if not self.secrets:
             raise AnsibleVaultError('Attempting to decrypt but no vault secrets found')
@@ -662,7 +652,7 @@ class VaultLib:
                 # secret = self.secrets[vault_secret_id]
                 display.vvvv(u'Trying secret %s for vault_id=%s' % (to_text(vault_secret), to_text(vault_secret_id)))
                 # FIXME: if/when we fix the internals, the to_text won't be necessary
-                b_plaintext = this_method.decrypt(to_text(b_vaulttext), vault_secret)
+                b_plaintext = this_plugin.decrypt(to_text(b_vaulttext), vault_secret)
                 vault_id_used = vault_secret_id
                 vault_secret_used = vault_secret
                 file_slug = ''
@@ -702,7 +692,7 @@ class VaultEditor:
         """"Destroy a file, when shred (core-utils) is not available
 
         Unix `shred' destroys files "so that they can be recovered only with great difficulty with
-        specialised hardware, if at all". It is based on the method from the paper
+        specialised hardware, if at all". It is based on the plugin from the paper
         "Secure Deletion of Data from Magnetic and Solid-State Memory",
         Proceedings of the Sixth USENIX Security Symposium (San Jose, California, July 22-25, 1996).
 
@@ -741,7 +731,7 @@ class VaultEditor:
 
         Nevertheless, some form of overwriting the data (instead of just removing the fs index entry) is
         a good idea. If shred is not available (e.g. on windows, or no core-utils installed), fall back on
-        a custom shredding method.
+        a custom shredding plugin.
         """
 
         if not os.path.isfile(tmp_path):
@@ -880,12 +870,12 @@ class VaultEditor:
 
         # Figure out the vault id from the file, to select the right secret to re-encrypt it
         # (duplicates parts of decrypt, but alas...)
-        dummy, dummy, method_name, vault_id = parse_vaulttext_envelope(b_vaulttext, filename=filename)
+        dummy, dummy, plugin_name, vault_id = parse_vaulttext_envelope(b_vaulttext, filename=filename)
 
         # vault id here may not be the vault id actually used for decrypting
         # as when the edited file has no vault-id but is decrypted by non-default id in secrets
         # (vault_id=default, while a different vault-id decrypted)
-        display.vvvv(f'Found vault envelope in {filename} with vault-id={vault_id} using {method_name}')
+        display.vvvv(f'Found vault envelope in {filename} with vault-id={vault_id} using {plugin_name}')
 
         # Keep the same vault-id (and version) as in the header
         self._edit_file_helper(filename, vault_secret_used, existing_data=plaintext, force_save=False, vault_id=vault_id)
@@ -925,8 +915,8 @@ class VaultEditor:
         # FIXME: VaultContext...?  could rekey to a different vault_id in the same VaultSecrets
 
         # Need a new VaultLib because the new vault data can be a different
-        # vault lib format or method(for ex, when we migrate 1.0 style vault data to
-        # 1.1 style data we change the version and the method). This is where a VaultContext might help
+        # vault lib format or plugin(for ex, when we migrate 1.0 style vault data to
+        # 1.1 style data we change the version and the plugin). This is where a VaultContext might help
 
         # the new vault will only be used for encrypting, so it doesn't need the vault secrets
         # (we will pass one in directly to encrypt)

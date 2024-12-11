@@ -480,7 +480,6 @@ class TestMatchSecrets(unittest.TestCase):
                          [a for a, b in expected])
 
 
-#@pytest.mark.usefixtures(patch_rot13_import.__name__)
 class TestVaultLib(unittest.TestCase):
     def setUp(self):
         self.vault_password = "test-vault-password"
@@ -609,7 +608,6 @@ class TestVaultLib(unittest.TestCase):
 
 
 @pytest.mark.parametrize('vault_id', ('new\nline', 'semi;colon'))
-#@pytest.mark.usefixtures(patch_rot13_import.__name__)
 def test_encrypt_vault_id_with_invalid_character(vault_id: str) -> None:
     vault_lib = vault.VaultLib([('default', TextVaultSecret('password'))])
 

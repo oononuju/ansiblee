@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-#TODO: move to collection
+# TODO: move to collection
 
 DOCUMENTATION = """
     name: kpv1

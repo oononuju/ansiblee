@@ -23,8 +23,6 @@ import os
 import tempfile
 import unittest
 
-import pytest
-
 from io import BytesIO, StringIO
 from units.mock.vault_helper import TextVaultSecret
 from unittest.mock import patch
@@ -40,7 +38,6 @@ c2JiCg==
 """
 
 
-#@pytest.mark.usefixtures(patch_rot13_import.__name__)
 class TestVaultEditor(unittest.TestCase):
 
     def setUp(self):

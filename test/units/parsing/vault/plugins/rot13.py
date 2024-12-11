@@ -9,9 +9,6 @@ import dataclasses
 import time
 import typing as t
 
-import pytest
-import pytest_mock
-
 from ansible.parsing.vault import VaultSecret
 from ansible.plugins.vault import VaultSecretError, VaultBase
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import typing as t
-
+import os
 import pytest
+import typing as t
 
 from ansible.plugins.loader import vault_loader
 from ansible.parsing.vault import VaultSecret, load_vault_method
@@ -10,9 +10,9 @@ from ansible.parsing.vault.methods import VaultSecretError
 
 from ..test_decrypt import get_plugin_names
 
-
 pytestmark = pytest.mark.usefixtures(patch_rot13_import.__name__)
-vault_loader.add_directory(os.path.dirname(__file__)
+vault_loader.add_directory(os.path.dirname(__file__))
+
 
 @pytest.mark.parametrize("plugin_name", get_plugin_names())
 def test_roundtrip(plugin_name: str) -> None:

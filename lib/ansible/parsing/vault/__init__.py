@@ -198,7 +198,7 @@ def load_vault_plugin(plugin_name: str | None) -> type[VaultBase]:
     if not plugin:
         raise AnsibleError(f"Unable to load vault plugin named {plugin_name}")
 
-    return plugin
+    return plugin()
 
 
 def verify_secret_is_not_empty(secret, msg=None):
@@ -509,7 +509,7 @@ class VaultLib:
         self.secrets: list[tuple[str, VaultSecret]] = secrets or []
         self.b_version = b'1.2'
 
-    @staticplugin
+    @staticmethod
     def is_encrypted(vaulttext):
         return is_encrypted(vaulttext)
 
@@ -552,7 +552,6 @@ class VaultLib:
             display.vvvvv(u'Encrypting without a vault_id using vault secret %s' % to_text(secret))
 
         options: dict[str, t.Any] = {}
-
         if salt:
             options['salt'] = to_text(salt)  # backwards compatibility for AES256 which allows a salt to be provided
 

@@ -61,6 +61,7 @@ try:
 except Exception as e:
     CRYPTOLIB_ERROR = e
 
+from ansible.module_utils.common.text.converters import to_bytes
 from ansible.parsing.vault import VaultSecret
 from . import VaultBase, VaultSecretError
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 import abc
 import errno
 import fcntl
-import importlib
 import os
 import random
 import shlex
@@ -227,7 +226,7 @@ class VaultSecret:
         """
         return self._bytes
 
-    @abc.abstractplugin
+    @abc.abstractmethod
     def load(self) -> None:
         pass
 

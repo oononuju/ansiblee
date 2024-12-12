@@ -1,0 +1,2 @@
+bugfixes:
+  - ansible-doc will now correctly handle YAML formated examples secions

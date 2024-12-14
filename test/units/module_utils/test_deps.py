@@ -22,6 +22,7 @@ def module():
 
 
 def test_wrong_name(module):
+    deps.clear()
     with deps.declare("sys") as sys_dep:
         import sys  # noqa: F401, pylint: disable=unused-import
 
@@ -30,6 +31,7 @@ def test_wrong_name(module):
 
 
 def test_fail_potatoes(module):
+    deps.clear()
     with deps.declare("potatoes", reason="Must have potatoes") as potatoes_dep:
         import potatoes_that_will_never_be_there  # type: ignore[import]  # pylint: disable=unused-import
 
@@ -41,6 +43,7 @@ def test_fail_potatoes(module):
 
 
 def test_sys(module):
+    deps.clear()
     with deps.declare("sys") as sys_dep:
         import sys  # noqa: F401, pylint: disable=unused-import
 
@@ -50,6 +53,7 @@ def test_sys(module):
 
 
 def test_multiple(module):
+    deps.clear()
     with deps.declare("mpotatoes", reason="Must have mpotatoes"):
         import potatoes_that_will_never_be_there  # type: ignore[import]  # pylint: disable=unused-import
 

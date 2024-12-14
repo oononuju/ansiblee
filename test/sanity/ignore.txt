@@ -224,9 +224,3 @@ test/units/module_utils/facts/test_facts.py mypy-3.8:assignment
 test/units/modules/mount_facts_data.py mypy-3.8:arg-type
 test/units/modules/test_apt.py mypy-3.8:name-match
 test/units/modules/test_mount_facts.py mypy-3.8:index
-test/units/module_utils/test_deps.py mypy-3.8:import-not-found
-test/units/module_utils/test_deps.py mypy-3.9:import-not-found
-test/units/module_utils/test_deps.py mypy-3.10:import-not-found
-test/units/module_utils/test_deps.py mypy-3.11:import-not-found
-test/units/module_utils/test_deps.py mypy-3.12:import-not-found
-test/units/module_utils/test_deps.py mypy-3.13:import-not-found

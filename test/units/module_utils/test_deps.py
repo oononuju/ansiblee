@@ -28,10 +28,12 @@ def test_wrong_name(module):
     with pytest.raises(KeyError):
         deps.validate(module, "wrong_name")
 
+    assert sys_dep.failed is True
+
 
 def test_fail_potatoes(module):
     with deps.declare("potatoes", reason="Must have potatoes") as potatoes_dep:
-        import potatoes_that_will_never_be_there  # noqa: F401, pylint: disable=unused-import
+        import potatoes_that_will_never_be_there  # type: ignore[import]  # pylint: disable=unused-import
 
     with pytest.raises(AnsibleFailJson):
         deps.validate(module)
@@ -51,7 +53,7 @@ def test_sys(module):
 
 def test_multiple(module):
     with deps.declare("mpotatoes", reason="Must have mpotatoes"):
-        import potatoes_that_will_never_be_there  # noqa: F401, pylint: disable=unused-import
+        import potatoes_that_will_never_be_there  # type: ignore[import]  # pylint: disable=unused-import
 
     with deps.declare("msys", reason="Must have msys"):
         import sys  # noqa: F401, pylint: disable=unused-import

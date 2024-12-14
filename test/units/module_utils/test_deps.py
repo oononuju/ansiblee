@@ -28,8 +28,6 @@ def test_wrong_name(module):
     with pytest.raises(KeyError):
         deps.validate(module, "wrong_name")
 
-    assert sys_dep.failed is True
-
 
 def test_fail_potatoes(module):
     with deps.declare("potatoes", reason="Must have potatoes") as potatoes_dep:

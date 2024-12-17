@@ -324,7 +324,16 @@ class CLI(ABC):
         becomepass = None
         become_prompt = ''
 
-        become_prompt_method = "BECOME" if C.AGNOSTIC_BECOME_PROMPT else op['become_method'].upper()
+        if C.AGNOSTIC_BECOME_PROMPT:
+            become_prompt_method = "BECOME"
+        else:
+            display.deprecated(
+                'The setting AGNOSTIC_BECOME_PROMPT to False is deprecated and no longer used. '
+                'Ensure that you have configured any interactive script to accept "BECOME" '
+                'to identify become password prompt.',
+                version='2.22'
+            )
+            become_prompt_method = op['become_method'].upper()
 
         try:
             become_prompt = "%s password: " % become_prompt_method

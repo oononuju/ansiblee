@@ -153,12 +153,18 @@ AGNOSTIC_BECOME_PROMPT:
   name: Display an agnostic become prompt
   default: True
   type: boolean
-  description: Display an agnostic become prompt instead of displaying a prompt containing the command line supplied become method.
+  description:
+    - If set to True, any become password prompt will begin with "BECOME" instead of user provided become_method in uppercase.
+    - This allows a simplified and become method agnostic way of identifying the need for entering the password.
   env: [{name: ANSIBLE_AGNOSTIC_BECOME_PROMPT}]
   ini:
     - {key: agnostic_become_prompt, section: privilege_escalation}
   yaml: {key: privilege_escalation.agnostic_become_prompt}
   version_added: "2.5"
+  deprecated:
+    why: The value "BECOME" at the start of the become password prompt is default now.
+    version: "2.22"
+    alternatives: Modify any user scripts to identify "BECOME" as become password prompt for interaction.
 CACHE_PLUGIN:
   name: Persistent Cache plugin
   default: memory

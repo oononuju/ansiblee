@@ -6,22 +6,29 @@ from __future__ import annotations
 
 from ansible.cli.galaxy import _display_role
 
+import pytest
 
-def test_display_role(mocker, capsys):
-    mocked_galaxy_role = mocker.Mock(install_info=None)
-    mocked_galaxy_role.name = 'testrole'
+
+@pytest.mark.parametrize(
+    ("role_metadata", "expected"),
+    [
+        pytest.param(
+            {"name": "testrole", "install_info": None},
+            "- testrole, (unknown version)",
+            id="unknown-version",
+        ),
+        pytest.param(
+            {"name": "testrole", "install_info": {"version": "1.0.0"}},
+            "- testrole, 1.0.0",
+            id="known-version",
+        ),
+    ],
+)
+def test_display_role(mocker, capsys, role_metadata, expected):
+    mocked_galaxy_role = mocker.Mock(**role_metadata)
+    mocked_galaxy_role.name = role_metadata["name"]
     _display_role(mocked_galaxy_role)
-    out, err = capsys.readouterr()
+    out, dummy = capsys.readouterr()
     out_lines = out.splitlines()
 
-    assert out_lines[0] == '- testrole, (unknown version)'
-
-
-def test_display_role_known_version(mocker, capsys):
-    mocked_galaxy_role = mocker.Mock(install_info={'version': '1.0.0'})
-    mocked_galaxy_role.name = 'testrole'
-    _display_role(mocked_galaxy_role)
-    out, err = capsys.readouterr()
-    out_lines = out.splitlines()
-
-    assert out_lines[0] == '- testrole, 1.0.0'
+    assert out_lines[0] == expected

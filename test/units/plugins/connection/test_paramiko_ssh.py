@@ -18,12 +18,14 @@
 
 from __future__ import annotations
 
+import os
 from io import StringIO
 import pytest
 
 from ansible.plugins.connection import paramiko_ssh as paramiko_ssh_module
 from ansible.plugins.loader import connection_loader
 from ansible.playbook.play_context import PlayContext
+from ansible.utils.path import makedirs_safe
 
 
 @pytest.fixture
@@ -54,3 +56,11 @@ def test_paramiko_connect(play_context, in_stream, mocker):
 
     assert isinstance(connection, paramiko_ssh_module.Connection)
     assert connection._connected is True
+
+
+def test_create_ssh_directory():
+    fixed_permissions = 0o700
+    path = os.path.expanduser("~/.ssh")
+    makedirs_safe(path, fixed_permissions)
+    ssh_dir_stat = os.stat(path)
+    assert (ssh_dir_stat.st_mode & 0o7777) == fixed_permissions

@@ -10,6 +10,7 @@ from __future__ import annotations
 # ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
 from ansible.cli import CLI
 
+import argparse
 import atexit
 import cmd
 import getpass
@@ -115,6 +116,9 @@ class ConsoleCLI(CLI, cmd.Cmd):
         opt_help.add_basedir_options(self.parser)
         opt_help.add_runtask_options(self.parser)
         opt_help.add_tasknoplay_options(self.parser)
+
+        # remove unused default options
+        self.parser.add_argument('--list-hosts', help=argparse.SUPPRESS, action=opt_help.UnrecognizedArgument)
 
         # options unique to shell
         self.parser.add_argument('pattern', help='host pattern', metavar='pattern', default='all', nargs='?')

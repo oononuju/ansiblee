@@ -9,6 +9,7 @@ from __future__ import annotations
 # ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
 from ansible.cli import CLI
 
+import argparse
 import datetime
 import os
 import platform
@@ -92,6 +93,9 @@ class PullCLI(CLI):
         opt_help.add_runas_prompt_options(self.parser)
 
         self.parser.add_argument('args', help='Playbook(s)', metavar='playbook.yml', nargs='*')
+
+        # remove unused default options
+        self.parser.add_argument('--list-hosts', help=argparse.SUPPRESS, action=opt_help.UnrecognizedArgument)
 
         # options unique to pull
         self.parser.add_argument('--purge', default=False, action='store_true', help='purge checkout after playbook run')
@@ -297,9 +301,6 @@ class PullCLI(CLI):
             cmd += ' -C'
         if context.CLIARGS['diff']:
             cmd += ' -D'
-
-        if context.CLIARGS['flush_cache']:
-            cmd += ' --flush-cache'
 
         os.chdir(context.CLIARGS['dest'])
 

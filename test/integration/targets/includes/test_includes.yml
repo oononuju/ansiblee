@@ -8,3 +8,5 @@
 - import_playbook: test_include_free.yml
 
 - import_playbook: test_include_host_pinned.yml
+
+- import_playbook: test_include_relative.yml

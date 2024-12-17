@@ -1,0 +1,18 @@
+- name: Include role relative file tasks/main.yml
+  include_tasks:
+    file: main.yml
+
+- assert:
+    that: role_relative is defined
+
+- name: Include a relative file from a calling role
+  include_tasks:
+    file: calling_role_relative.yml
+
+- name: Include a task relative file
+  include_tasks:
+    file: task_relative.yml
+
+- name: Include a task relative to the playbook
+  include_tasks:
+    file: playbook_relative.yml

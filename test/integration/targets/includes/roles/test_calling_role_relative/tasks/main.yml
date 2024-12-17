@@ -1,0 +1,4 @@
+- name: Include role with tasks_from
+  include_role:
+    name: test_relative_includes
+    tasks_from: subdir/main.yml

@@ -668,6 +668,7 @@ def ensure_venv() -> dict[str, t.Any]:
     ansible_requirements = ANSIBLE_REQUIREMENTS_FILE.read_text()
 
     release_requirements = """
+pypi-attestations  # https://docs.pypi.org/attestations/producing-attestations/#using-pypi-attestations
 build
 twine
 """
@@ -1460,7 +1461,32 @@ def publish(repository: str, prompt: bool = True) -> None:
             display.show("")
             raise ApplicationError("Publishing was aborted by the user.") from None
 
-    run("twine", "upload", "-r", repository, sdist_file, wheel_file, env=env, cwd=CHECKOUT_DIR)
+    run(
+        # NOTE: This initializes the OAuth flow and will use the
+        # NOTE: GitHub-provided OIDC identity to sign.
+        # Ref: https://docs.pypi.org/attestations/producing-attestations/#using-pypi-attestations
+        "python",
+        "-Im", "pypi_attestations",
+        "sign",
+        sdist_file,
+        wheel_file,
+        capture_output=True,
+        cwd=CHECKOUT_DIR,
+        env=env,
+    )
+    run(
+        "twine", "upload",
+        "--attestations",
+        "--disable-progress-bar",
+        "-r", repository,
+        sdist_file,
+        sdist_file.with_suffix(f"{sdist_file.suffix}.publish.attestation"),
+        wheel_file,
+        wheel_file.with_suffix(f"{wheel_file.suffix}.publish.attestation"),
+        capture_output=True,
+        cwd=CHECKOUT_DIR,
+        env=env,
+    )
 
 
 @command

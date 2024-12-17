@@ -172,7 +172,13 @@ class StrategyModule(StrategyBase):
                                 display.warning("Using run_once with the free strategy is not currently supported. This task will still be "
                                                 "executed for every host in the inventory list.")
 
-                        if task.action in C._ACTION_META:
+                        if task.loop is not None or task.loop_with is not None:
+                            if self._host_pinned:
+                                meta_task_dummy_results_count += 1
+                                workers_free -= 1
+                            self._unroll_loop(host, task, task_vars, play_context, iterator)
+                            self._blocked_hosts[host_name] = False
+                        elif task.action in C._ACTION_META:
                             if self._host_pinned:
                                 meta_task_dummy_results_count += 1
                                 workers_free -= 1

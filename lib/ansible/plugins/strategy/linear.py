@@ -150,7 +150,9 @@ class StrategyModule(StrategyBase):
                         # corresponding action plugin
                         action = None
 
-                    if task_action in C._ACTION_META:
+                    if task.loop is not None or task.loop_with is not None:
+                        self._unroll_loop(host, task, task_vars, play_context, iterator)
+                    elif task_action in C._ACTION_META:
                         # for the linear strategy, we run meta tasks just once and for
                         # all hosts currently being iterated over rather than one host
                         results.extend(self._execute_meta(task, play_context, iterator, host))

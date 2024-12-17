@@ -53,12 +53,11 @@ class Vault(VaultBase):
 
         return base64.urlsafe_b64encode(derived_key)
 
-    @classmethod
-    def encrypt(cls, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
+    def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
         NoParams(**options)  # no options accepted
         params = Params()
 
-        key_encryption_key = cls._derive_key_encryption_key_from_secret(secret.bytes, params)
+        key_encryption_key = self._derive_key_encryption_key_from_secret(secret.bytes, params)
         key_encryption_cipher = Fernet(key_encryption_key)
 
         data_encryption_key = Fernet.generate_key()
@@ -76,12 +75,11 @@ class Vault(VaultBase):
 
         return base64.b64encode(json.dumps(payload).encode()).decode()
 
-    @classmethod
-    def decrypt(cls, vaulttext: str, secret: VaultSecret) -> bytes:
+    def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
         payload = json.loads(base64.b64decode(vaulttext.encode()).decode())
         params = Params()
 
-        key_encryption_key = cls._derive_key_encryption_key_from_secret(secret.bytes, params)
+        key_encryption_key = self._derive_key_encryption_key_from_secret(secret.bytes, params)
         key_encryption_cipher = Fernet(key_encryption_key)
 
         try:

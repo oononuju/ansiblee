@@ -71,15 +71,15 @@ class Vault(VaultBase):
         NoParams(**options)
 
         b_key = secret.bytes
-        try:
+        try:  # try to load as ssh key, if you fail, generic rsa key
             public_key = load_ssh_public_key(b_key)
         except ValueError as e:
             try:
-                public_key = load_pem_public_key(secret.bytes)
+                public_key: t.Any = load_pem_public_key(secret.bytes)
             except ValueError as e2:
                 raise ValueError(f"Could not load vault secret public key, as ssh: {e!r}.\n Nor as pem: {e2!r}")
 
-        if hasattr(public_key, 'encrypt'):
+        if hasattr(public_key, 'encrypt'):  # not all loadable keys are valid for encryption
             encrypted_text = public_key.encrypt(plaintext, self._padding)
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to encrypt")

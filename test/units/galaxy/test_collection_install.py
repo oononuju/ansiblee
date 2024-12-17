@@ -69,7 +69,7 @@ def collection_artifact(request, tmp_path_factory):
     skeleton_path = os.path.join(os.path.dirname(os.path.split(__file__)[0]), 'cli', 'test_data', 'collection_skeleton')
     collection_path = os.path.join(test_dir, namespace, collection)
 
-    call_galaxy_cli(['init', '%s.%s' % (namespace, collection), '-c', '--init-path', test_dir,
+    call_galaxy_cli(['init', '%s.%s' % (namespace, collection), '--init-path', test_dir,
                      '--collection-skeleton', skeleton_path])
     dependencies = getattr(request, 'param', {})
 

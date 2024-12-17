@@ -48,7 +48,7 @@ def init_role_dir(tmp_path_factory):
     namespace = 'ansible_namespace'
     role = 'role'
     skeleton_path = os.path.join(os.path.dirname(os.path.split(__file__)[0]), 'cli', 'test_data', 'role_skeleton')
-    call_galaxy_cli(['init', '%s.%s' % (namespace, role), '-c', '--init-path', test_dir, '--role-skeleton', skeleton_path])
+    call_galaxy_cli(['init', '%s.%s' % (namespace, role), '--init-path', test_dir, '--role-skeleton', skeleton_path])
 
 
 def mock_NamedTemporaryFile(mocker, **args):

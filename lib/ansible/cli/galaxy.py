@@ -220,20 +220,22 @@ class GalaxyCLI(CLI):
 
         # Common arguments that apply to more than 1 action
         common = opt_help.ArgumentParser(add_help=False)
-        common.add_argument('-s', '--server', dest='api_server', help='The Galaxy API server URL')
-        common.add_argument('--api-version', type=int, choices=[2, 3], help=argparse.SUPPRESS)  # Hidden argument that should only be used in our tests
-        common.add_argument('--token', '--api-key', dest='api_key',
+        opt_help.add_verbosity_options(common)
+
+        # common arguments for actions that use a galaxy server
+        server = opt_help.ArgumentParser(add_help=False)
+        server.add_argument('-s', '--server', dest='api_server', help='The Galaxy API server URL')
+        server.add_argument('--api-version', type=int, choices=[2, 3], help=argparse.SUPPRESS)  # Hidden argument that should only be used in our tests
+        server.add_argument('--token', '--api-key', dest='api_key',
                             help='The Ansible Galaxy API key which can be found at '
                                  'https://galaxy.ansible.com/me/preferences.')
-        common.add_argument('-c', '--ignore-certs', action='store_true', dest='ignore_certs', help='Ignore SSL certificate validation errors.', default=None)
+        server.add_argument('-c', '--ignore-certs', action='store_true', dest='ignore_certs', help='Ignore SSL certificate validation errors.', default=None)
 
         # --timeout uses the default None to handle two different scenarios.
         # * --timeout > C.GALAXY_SERVER_TIMEOUT for non-configured servers
         # * --timeout > server-specific timeout > C.GALAXY_SERVER_TIMEOUT for configured servers.
-        common.add_argument('--timeout', dest='timeout', type=int,
+        server.add_argument('--timeout', dest='timeout', type=int,
                             help="The time to wait for operations against the galaxy server, defaults to 60s.")
-
-        opt_help.add_verbosity_options(common)
 
         force = opt_help.ArgumentParser(add_help=False)
         force.add_argument('-f', '--force', dest='force', action='store_true', default=False,
@@ -276,29 +278,29 @@ class GalaxyCLI(CLI):
         collection.set_defaults(func=self.execute_collection)  # to satisfy doc build
         collection_parser = collection.add_subparsers(metavar='COLLECTION_ACTION', dest='action')
         collection_parser.required = True
-        self.add_download_options(collection_parser, parents=[common, cache_options])
+        self.add_download_options(collection_parser, parents=[common, server, cache_options])
         self.add_init_options(collection_parser, parents=[common, force])
         self.add_build_options(collection_parser, parents=[common, force])
-        self.add_publish_options(collection_parser, parents=[common])
-        self.add_install_options(collection_parser, parents=[common, force, cache_options])
+        self.add_publish_options(collection_parser, parents=[common, server])
+        self.add_install_options(collection_parser, parents=[common, server, force, cache_options])
         self.add_list_options(collection_parser, parents=[common, collections_path])
-        self.add_verify_options(collection_parser, parents=[common, collections_path])
+        self.add_verify_options(collection_parser, parents=[common, server, collections_path])
 
         # Add sub parser for the Galaxy role actions
         role = type_parser.add_parser('role', help='Manage an Ansible Galaxy role.')
         role.set_defaults(func=self.execute_role)  # to satisfy doc build
         role_parser = role.add_subparsers(metavar='ROLE_ACTION', dest='action')
         role_parser.required = True
-        self.add_init_options(role_parser, parents=[common, force, offline])
+        self.add_init_options(role_parser, parents=[common, force])
         self.add_remove_options(role_parser, parents=[common, roles_path])
-        self.add_delete_options(role_parser, parents=[common, github])
+        self.add_delete_options(role_parser, parents=[common, server, github])
         self.add_list_options(role_parser, parents=[common, roles_path])
-        self.add_search_options(role_parser, parents=[common])
-        self.add_import_options(role_parser, parents=[common, github])
-        self.add_setup_options(role_parser, parents=[common, roles_path])
+        self.add_search_options(role_parser, parents=[common, server])
+        self.add_import_options(role_parser, parents=[common, server, github])
+        self.add_setup_options(role_parser, parents=[common, server, roles_path])
 
-        self.add_info_options(role_parser, parents=[common, roles_path, offline])
-        self.add_install_options(role_parser, parents=[common, force, roles_path])
+        self.add_info_options(role_parser, parents=[common, server, roles_path, offline])
+        self.add_install_options(role_parser, parents=[common, server, force, roles_path])
 
     def add_download_options(self, parser, parents=None):
         download_parser = parser.add_parser('download', parents=parents,
@@ -605,10 +607,11 @@ class GalaxyCLI(CLI):
     def post_process_args(self, options):
         options = super(GalaxyCLI, self).post_process_args(options)
 
-        # ensure we have 'usable' cli option
-        setattr(options, 'validate_certs', (None if options.ignore_certs is None else not options.ignore_certs))
-        # the default if validate_certs is None
-        setattr(options, 'resolved_validate_certs', (options.validate_certs if options.validate_certs is not None else not C.GALAXY_IGNORE_CERTS))
+        if hasattr(options, 'ignore_certs'):
+            # ensure we have 'usable' cli option
+            setattr(options, 'validate_certs', (None if options.ignore_certs is None else not options.ignore_certs))
+            # the default if validate_certs is None
+            setattr(options, 'resolved_validate_certs', (options.validate_certs if options.validate_certs is not None else not C.GALAXY_IGNORE_CERTS))
 
         display.verbosity = options.verbosity
         return options
@@ -619,6 +622,17 @@ class GalaxyCLI(CLI):
 
         self.galaxy = Galaxy()
 
+        try:
+            context.CLIARGS['api_server']
+        except KeyError:
+            # actions that don't use a server, like init, build, etc
+            pass
+        else:
+            self._load_server_options()
+
+        return context.CLIARGS['func']()
+
+    def _load_server_options(self):
         # dynamically add per server config depending on declared servers
         C.config.load_galaxy_server_defs(C.GALAXY_SERVER_LIST)
 
@@ -724,10 +738,11 @@ class GalaxyCLI(CLI):
         # self.api can be used to evaluate the best server immediately
         self.lazy_role_api = RoleDistributionServer(None, self.api_servers)
 
-        return context.CLIARGS['func']()
-
     @property
     def api(self):
+        if self.lazy_role_api is None:
+            # only true if there are no Galaxy API options for the action (init, build, etc)
+            return None
         return self.lazy_role_api.api
 
     def _get_default_collection_path(self):

@@ -78,6 +78,7 @@ namespace Ansible.Basic
             { "tmpdir", "tmpdir" },
             { "verbosity", "Verbosity" },
             { "version", "AnsibleVersion" },
+            { "backup_file_name_template", "BackupFileNameTemplate" },
         };
         private List<string> passBools = new List<string>() { "check_mode", "debug", "diff", "keep_remote_files", "ignore_unknown_opts", "no_log" };
         private List<string> passInts = new List<string>() { "verbosity" };
@@ -131,6 +132,7 @@ namespace Ansible.Basic
         public string TargetLogInfo { get; private set; }
         public int Verbosity { get; private set; }
         public string AnsibleVersion { get; private set; }
+        public string BackupFileNameTemplate { get; private set; }
 
         public string Tmpdir
         {
@@ -264,6 +266,7 @@ namespace Ansible.Basic
             TargetLogInfo = "";
             NoLog = (bool)argumentSpec["no_log"];
             Verbosity = 0;
+            BackupFileNameTemplate = "";
             AppDomain.CurrentDomain.ProcessExit += CleanupFiles;
 
             List<string> legalInputs = passVars.Keys.Select(v => "_ansible_" + v).ToList();

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import functools
 import typing as t
 
@@ -38,16 +40,16 @@ except ImportError:
 
 
 # TODO: add python requirements to ansible-test's ansible-core distribution info and remove the hardcoded lowerbound/upperbound fallback
-RESOLVELIB_LOWERBOUND = SemanticVersion("0.5.3")
+RESOLVELIB_LOWERBOUND = SemanticVersion("0.8.0")
 RESOLVELIB_UPPERBOUND = SemanticVersion("2.0.0")
 RESOLVELIB_VERSION = SemanticVersion.from_loose_version(LooseVersion(resolvelib_version))
 
 
-class CollectionDependencyProviderBase(AbstractProvider):
+class CollectionDependencyProvider(AbstractProvider):
     """Delegate providing a requirement interface for the resolver."""
 
     def __init__(
-            self,  # type: CollectionDependencyProviderBase
+            self,
             apis,  # type: MultiGalaxyAPIProxy
             concrete_artifacts_manager=None,  # type: ConcreteArtifactsManager
             preferred_candidates=None,  # type: t.Iterable[Candidate]
@@ -103,46 +105,20 @@ class CollectionDependencyProviderBase(AbstractProvider):
         """
         return requirement_or_candidate.canonical_package_id
 
-    def get_preference(self, *args, **kwargs):
-        # type: (t.Any, t.Any) -> t.Union[float, int]
+    def get_preference(
+        self,
+        identifier: str,
+        resolutions: t.Mapping[str, Candidate],
+        candidates: t.Mapping[str, t.Iterator[Candidate]],
+        information: t.Iterator[t.NamedTuple],
+        backtrack_causes: Sequence[t.NamedTuple],
+    ) -> float | int:
         """Return sort key function return value for given requirement.
 
         This result should be based on preference that is defined as
         "I think this requirement should be resolved first".
         The lower the return value is, the more preferred this
         group of arguments is.
-
-        resolvelib >=0.5.3, <0.7.0
-
-        :param resolution: Currently pinned candidate, or ``None``.
-
-        :param candidates: A list of possible candidates.
-
-        :param information: A list of requirement information.
-
-        Each ``information`` instance is a named tuple with two entries:
-
-          * ``requirement`` specifies a requirement contributing to
-            the current candidate list
-
-          * ``parent`` specifies the candidate that provides
-            (depended on) the requirement, or `None`
-            to indicate a root requirement.
-
-        resolvelib >=0.7.0, < 0.8.0
-
-        :param identifier: The value returned by ``identify()``.
-
-        :param resolutions: Mapping of identifier, candidate pairs.
-
-        :param candidates: Possible candidates for the identifier.
-            Mapping of identifier, list of candidate pairs.
-
-        :param information: Requirement information of each package.
-            Mapping of identifier, list of named tuple pairs.
-            The named tuples have the entries ``requirement`` and ``parent``.
-
-        resolvelib >=0.8.0, <= 1.0.1
 
         :param identifier: The value returned by ``identify()``.
 
@@ -179,21 +155,19 @@ class CollectionDependencyProviderBase(AbstractProvider):
         the value is, the more preferred this requirement is (i.e. the
         sorting function is called with ``reverse=False``).
         """
-        raise NotImplementedError
+        for candidate in candidates[identifier]:
+            if candidate in self._preferred_candidates:
+                # NOTE: Prefer pre-installed candidates over newer versions
+                # NOTE: available from Galaxy or other sources.
+                return float('-inf')
+        return len(list(candidates[identifier]))
 
-    def _get_preference(self, candidates):
-        # type: (list[Candidate]) -> t.Union[float, int]
-        if any(
-                candidate in self._preferred_candidates
-                for candidate in candidates
-        ):
-            # NOTE: Prefer pre-installed candidates over newer versions
-            # NOTE: available from Galaxy or other sources.
-            return float('-inf')
-        return len(candidates)
-
-    def find_matches(self, *args, **kwargs):
-        # type: (t.Any, t.Any) -> list[Candidate]
+    def find_matches(
+        self,
+        identifier: str,
+        requirements: t.Mapping[str, t.Iterator[Requirement]],
+        incompatibilities: t.Mapping[str, t.Iterator[Candidate]]
+    ) -> list[Candidate]:
         r"""Find all possible candidates satisfying given requirements.
 
         This tries to get candidates based on the requirements' types.
@@ -204,16 +178,6 @@ class CollectionDependencyProviderBase(AbstractProvider):
         For a "named" requirement, Galaxy-compatible APIs are consulted
         to find concrete candidates for this requirement. If there's a
         pre-installed candidate, it's prepended in front of others.
-
-        resolvelib >=0.5.3, <0.6.0
-
-        :param requirements: A collection of requirements which all of \
-                             the returned candidates must match. \
-                             All requirements are guaranteed to have \
-                             the same identifier. \
-                             The collection is never empty.
-
-        resolvelib >=0.6.0
 
         :param identifier: The value returned by ``identify()``.
 
@@ -226,10 +190,12 @@ class CollectionDependencyProviderBase(AbstractProvider):
         :returns: An iterable that orders candidates by preference, \
                   e.g. the most preferred candidate comes first.
         """
-        raise NotImplementedError
+        return [
+            match for match in self._find_matches(list(requirements[identifier]))
+            if not any(match.ver == incompat.ver for incompat in incompatibilities[identifier])
+        ]
 
-    def _find_matches(self, requirements):
-        # type: (list[Requirement]) -> list[Candidate]
+    def _find_matches(self, requirements: list[Requirement]) -> list[Candidate]:
         # FIXME: The first requirement may be a Git repo followed by
         # FIXME: its cloned tmp dir. Using only the first one creates
         # FIXME: loops that prevent any further dependency exploration.
@@ -398,8 +364,7 @@ class CollectionDependencyProviderBase(AbstractProvider):
 
         return list(preinstalled_candidates) + latest_matches
 
-    def is_satisfied_by(self, requirement, candidate):
-        # type: (Requirement, Candidate) -> bool
+    def is_satisfied_by(self, requirement: Requirement, candidate: Candidate) -> bool:
         r"""Whether the given requirement is satisfiable by a candidate.
 
         :param requirement: A requirement that produced the `candidate`.
@@ -425,8 +390,7 @@ class CollectionDependencyProviderBase(AbstractProvider):
             requirements=requirement.ver,
         )
 
-    def get_dependencies(self, candidate):
-        # type: (Candidate) -> list[Candidate]
+    def get_dependencies(self, candidate: Candidate) -> list[Requirement]:
         r"""Get direct dependencies of a candidate.
 
         :returns: A collection of requirements that `candidate` \
@@ -457,52 +421,3 @@ class CollectionDependencyProviderBase(AbstractProvider):
             self._make_req_from_dict({'name': dep_name, 'version': dep_req})
             for dep_name, dep_req in req_map.items()
         ]
-
-
-# Classes to handle resolvelib API changes between minor versions for 0.X
-class CollectionDependencyProvider050(CollectionDependencyProviderBase):
-    def find_matches(self, requirements):  # type: ignore[override]
-        # type: (list[Requirement]) -> list[Candidate]
-        return self._find_matches(requirements)
-
-    def get_preference(self, resolution, candidates, information):  # type: ignore[override]
-        # type: (t.Optional[Candidate], list[Candidate], list[t.NamedTuple]) -> t.Union[float, int]
-        return self._get_preference(candidates)
-
-
-class CollectionDependencyProvider060(CollectionDependencyProviderBase):
-    def find_matches(self, identifier, requirements, incompatibilities):  # type: ignore[override]
-        # type: (str, t.Mapping[str, t.Iterator[Requirement]], t.Mapping[str, t.Iterator[Requirement]]) -> list[Candidate]
-        return [
-            match for match in self._find_matches(list(requirements[identifier]))
-            if not any(match.ver == incompat.ver for incompat in incompatibilities[identifier])
-        ]
-
-    def get_preference(self, resolution, candidates, information):  # type: ignore[override]
-        # type: (t.Optional[Candidate], list[Candidate], list[t.NamedTuple]) -> t.Union[float, int]
-        return self._get_preference(candidates)
-
-
-class CollectionDependencyProvider070(CollectionDependencyProvider060):
-    def get_preference(self, identifier, resolutions, candidates, information):  # type: ignore[override]
-        # type: (str, t.Mapping[str, Candidate], t.Mapping[str, t.Iterator[Candidate]], t.Iterator[t.NamedTuple]) -> t.Union[float, int]
-        return self._get_preference(list(candidates[identifier]))
-
-
-class CollectionDependencyProvider080(CollectionDependencyProvider060):
-    def get_preference(self, identifier, resolutions, candidates, information, backtrack_causes):  # type: ignore[override]
-        # type: (str, t.Mapping[str, Candidate], t.Mapping[str, t.Iterator[Candidate]], t.Iterator[t.NamedTuple], t.Sequence) -> t.Union[float, int]
-        return self._get_preference(list(candidates[identifier]))
-
-
-def _get_provider():  # type () -> CollectionDependencyProviderBase
-    if RESOLVELIB_VERSION >= SemanticVersion("0.8.0"):
-        return CollectionDependencyProvider080
-    if RESOLVELIB_VERSION >= SemanticVersion("0.7.0"):
-        return CollectionDependencyProvider070
-    if RESOLVELIB_VERSION >= SemanticVersion("0.6.0"):
-        return CollectionDependencyProvider060
-    return CollectionDependencyProvider050
-
-
-CollectionDependencyProvider = _get_provider()

@@ -111,24 +111,7 @@ from collections.abc import MutableSequence
 from ansible.errors import AnsibleError, AnsibleAssertionError
 from ansible.parsing.splitter import parse_kv
 from ansible.plugins.lookup import LookupBase
-from ansible.module_utils.six import PY2
 from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
-
-
-class CSVRecoder:
-    """
-    Iterator that reads an encoded stream and encodes the input to UTF-8
-    """
-    def __init__(self, f, encoding='utf-8'):
-        self.reader = codecs.getreader(encoding)(f)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return next(self.reader).encode("utf-8")
-
-    next = __next__   # For Python 2
 
 
 class CSVReader:
@@ -138,10 +121,7 @@ class CSVReader:
     """
 
     def __init__(self, f, dialect=csv.excel, encoding='utf-8', **kwds):
-        if PY2:
-            f = CSVRecoder(f, encoding)
-        else:
-            f = codecs.getreader(encoding)(f)
+        f = codecs.getreader(encoding)(f)
 
         self.reader = csv.reader(f, dialect=dialect, **kwds)
 
@@ -149,27 +129,24 @@ class CSVReader:
         row = next(self.reader)
         return [to_text(s) for s in row]
 
-    next = __next__  # For Python 2
-
     def __iter__(self):
         return self
 
 
 class LookupModule(LookupBase):
 
-    def read_csv(self, filename, key, delimiter, encoding='utf-8', dflt=None, col=1, keycol=0):
-
+    def read_csv(self, **kwargs):
         try:
-            f = open(to_bytes(filename), 'rb')
-            creader = CSVReader(f, delimiter=to_native(delimiter), encoding=encoding)
+            with open(to_bytes(kwargs['filename']), 'rb') as fh:
+                creader = CSVReader(fh, delimiter=to_native(kwargs['delimiter']), encoding=kwargs['encoding'])
 
-            for row in creader:
-                if len(row) and row[keycol] == key:
-                    return row[col]
+                for row in creader:
+                    if len(row) and row[kwargs['keycol']] == kwargs['key']:
+                        return row[kwargs['col']]
         except Exception as e:
-            raise AnsibleError("csvfile: %s" % to_native(e))
+            raise AnsibleError(f"Failed to read CSV file: {to_native(e)}")
 
-        return dflt
+        return kwargs.get('default')
 
     def run(self, terms, variables=None, **kwargs):
 
@@ -198,7 +175,7 @@ class LookupModule(LookupBase):
                     if name == '_raw_params':
                         continue
                     if name not in paramvals:
-                        raise AnsibleAssertionError('%s is not a valid option' % name)
+                        raise AnsibleAssertionError(f'{name} is not a valid option')
 
                     self._deprecate_inline_kv()
                     self.set_option(name, value)
@@ -215,11 +192,18 @@ class LookupModule(LookupBase):
                 paramvals['delimiter'] = "\t"
 
             lookupfile = self.find_file_in_search_path(variables, 'files', paramvals['file'])
-            var = self.read_csv(lookupfile, key, paramvals['delimiter'], paramvals['encoding'], paramvals['default'], paramvals['col'], paramvals['keycol'])
+            var = self.read_csv(**{
+                'filename': lookupfile,
+                'key': key,
+                'delimiter': paramvals['delimiter'],
+                'encoding': paramvals['encoding'],
+                'default': paramvals['default'],
+                'col': paramvals['col'],
+                'keycol': paramvals['keycol'],
+            })
             if var is not None:
                 if isinstance(var, MutableSequence):
-                    for v in var:
-                        ret.append(v)
+                    ret.extend(var)
                 else:
                     ret.append(var)
 

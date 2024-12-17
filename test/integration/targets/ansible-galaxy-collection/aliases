@@ -2,3 +2,5 @@ shippable/galaxy/group1
 shippable/galaxy/smoketest
 cloud/galaxy
 context/controller
+# TODO: remove once the test cleans up between failures reliably and delete the runme.sh
+never/retry/

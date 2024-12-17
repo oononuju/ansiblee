@@ -212,13 +212,37 @@ class AzurePipelinesChanges:
             # <commit>...<commit>
             # This form is to view the changes on the branch containing and up to the second <commit>, starting at a common ancestor of both <commit>.
             # see: https://git-scm.com/docs/git-diff
-            dot_range = '%s...%s' % (self.base_commit, self.commit)
-
-            self.paths = sorted(self.git.get_diff_names([dot_range]))
-            self.diff = self.git.get_diff([dot_range])
+            self.paths = sorted(self.get_changed_paths())
+            self.diff = self.git.get_diff([self.dot_range])
         else:
             self.paths = None  # act as though change detection not enabled, do not filter targets
             self.diff = []
+
+    @property
+    def dot_range(self) -> str:
+        """Return a three-dot commit range between base and target."""
+        return f'{self.base_commit !s}...{self.commit !s}'
+
+    def fetch_common_ancestor_commit(self) -> None:
+        """Augment the Git tree parts needed to reach the merge base."""
+        # This is achieved by unshallowing the entire Git tree.
+        # A more granular alternative approach is presented in
+        # https://github.com/ansible/ansible/pull/84375.
+        display.info(
+            'Attempting to fetch parts of Git tree '
+            'making the branch fork point reachable...',
+        )
+
+        self.git.run_git(['fetch', '--unshallow', 'origin'])
+
+    def get_changed_paths(self) -> list[str]:
+        """Identify files changed in base or target since fork."""
+        try:
+            return self.git.get_diff_names([self.dot_range])
+        except LookupError as lookup_err:
+            display.notice(f'{lookup_err !s}')
+            self.fetch_common_ancestor_commit()
+            return self.git.get_diff_names([self.dot_range])
 
     def get_successful_merge_run_commits(self) -> set[str]:
         """Return a set of recent successful merge commits from Azure Pipelines."""

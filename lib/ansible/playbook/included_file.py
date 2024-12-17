@@ -70,15 +70,11 @@ class IncludedFile:
             original_task = res._task
 
             if original_task.action in C._ACTION_ALL_INCLUDES:
-
                 if original_task.loop:
-                    if 'results' not in res._result:
-                        continue
-                    include_results = res._result['results']
-                else:
-                    include_results = [res._result]
+                    # N/A anymore
+                    continue
 
-                for include_result in include_results:
+                for include_result in [res._result]:
                     # if the task result was skipped or failed, continue
                     if 'skipped' in include_result and include_result['skipped'] or 'failed' in include_result and include_result['failed']:
                         continue

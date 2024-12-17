@@ -30,7 +30,7 @@ DOCUMENTATION = """
 """
 
 from ansible import constants as C
-from ansible.errors import AnsibleError, AnsibleAssertionError, AnsibleParserError
+from ansible.errors import AnsibleError, AnsibleAssertionError, AnsibleParserError, AnsibleSendControllerTaskResult
 from ansible.module_utils.common.text.converters import to_text
 from ansible.playbook.handler import Handler
 from ansible.playbook.included_file import IncludedFile
@@ -131,62 +131,87 @@ class StrategyModule(StrategyBase):
                     work_to_do = True
 
                     display.debug("getting variables")
-                    task_vars = self._variable_manager.get_vars(play=iterator._play, host=host, task=task,
-                                                                _hosts=self._hosts_cache, _hosts_all=self._hosts_cache_all)
+                    task_vars = self._variable_manager.get_vars(
+                        play=iterator._play,
+                        host=host,
+                        task=task,
+                        _hosts=self._hosts_cache,
+                        _hosts_all=self._hosts_cache_all,
+                    )
+
                     self.add_tqm_variables(task_vars, play=iterator._play)
                     templar = Templar(loader=self._loader, variables=task_vars)
                     display.debug("done getting variables")
-
-                    # test to see if the task across all hosts points to an action plugin which
-                    # sets BYPASS_HOST_LOOP to true, or if it has run_once enabled. If so, we
-                    # will only send this task to the first host in the list.
-
-                    task_action = templar.template(task.action)
-
+                    new_task = task
+                    new_play_context = play_context
                     try:
-                        action = action_loader.get(task_action, class_only=True, collection_list=task.collections)
-                    except KeyError:
-                        # we don't care here, because the action may simply not have a
-                        # corresponding action plugin
-                        action = None
-
-                    if task_action in C._ACTION_META:
-                        # for the linear strategy, we run meta tasks just once and for
-                        # all hosts currently being iterated over rather than one host
-                        results.extend(self._execute_meta(task, play_context, iterator, host))
-                        if task.args.get('_raw_params', None) not in ('noop', 'reset_connection', 'end_host', 'role_complete', 'flush_handlers'):
-                            run_once = True
-                        if (task.any_errors_fatal or run_once) and not task.ignore_errors:
-                            any_errors_fatal = True
-                    else:
-                        # handle step if needed, skip meta actions as they are used internally
-                        if self._step and choose_step:
-                            if self._take_step(task):
-                                choose_step = False
-                            else:
-                                skip_rest = True
-                                break
-
-                        run_once = action and getattr(action, 'BYPASS_HOST_LOOP', False) or templar.template(task.run_once)
+                        loop_e = None
                         try:
-                            task.name = to_text(templar.template(task.name, fail_on_undefined=False), nonstring='empty')
-                        except Exception as e:
-                            display.debug(f"Failed to templalte task name ({task.name}), ignoring error and continuing: {e}")
+                            if task.loop is not None or task.loop_with is not None:
+                                self._unroll_loop(host, task, task_vars, play_context, iterator)
+                                continue
+                        except AnsibleSendControllerTaskResult as e:
+                            loop_e = e
 
-                        if (task.any_errors_fatal or run_once) and not task.ignore_errors:
-                            any_errors_fatal = True
+                        try:
+                            new_task.name = to_text(templar.template(new_task.name, fail_on_undefined=False), nonstring='empty')
+                        except Exception as e:
+                            display.debug(f"Failed to templalte task name ({new_task.name}), ignoring error and continuing: {e}")
 
                         if not callback_sent:
-                            if isinstance(task, Handler):
-                                self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
+                            if isinstance(new_task, Handler):
+                                self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
                             else:
-                                self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
+                                self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
                             callback_sent = True
 
-                        self._blocked_hosts[host.get_name()] = True
-                        self._queue_task(host, task, task_vars, play_context)
-                        del task_vars
+                        if loop_e:
+                            raise loop_e
 
+                        new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
+
+                        # test to see if the task across all hosts points to an action plugin which
+                        # sets BYPASS_HOST_LOOP to true, or if it has run_once enabled. If so, we
+                        # will only send this task to the first host in the list.
+
+                        task_action = templar.template(task.action)
+
+                        try:
+                            action = action_loader.get(task_action, class_only=True, collection_list=new_task.collections)
+                        except KeyError:
+                            # we don't care here, because the action may simply not have a
+                            # corresponding action plugin
+                            action = None
+
+                        if task_action in C._ACTION_META:
+                            # for the linear strategy, we run meta tasks just once and for
+                            # all hosts currently being iterated over rather than one host
+                            results.extend(self._execute_meta(new_task, new_play_context, iterator, host))
+                            if task.args.get('_raw_params', None) not in ('noop', 'reset_connection', 'end_host', 'role_complete', 'flush_handlers'):
+                                run_once = True
+                            if (task.any_errors_fatal or run_once) and not new_task.ignore_errors:
+                                any_errors_fatal = True
+                        else:
+                            # handle step if needed, skip meta actions as they are used internally
+                            if self._step and choose_step:
+                                if self._take_step(new_task):
+                                    choose_step = False
+                                else:
+                                    skip_rest = True
+                                    break
+
+                            run_once = action and getattr(action, 'BYPASS_HOST_LOOP', False) or templar.template(new_task.run_once)
+
+                            if (new_task.any_errors_fatal or run_once) and not new_task.ignore_errors:
+                                any_errors_fatal = True
+
+                            self._queue_task(host, new_task, task_vars, new_play_context, task_action, templar)
+                    except AnsibleSendControllerTaskResult as e:
+                        self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
+
+                    del task_vars
+
+                    # FIXME the original task (Handler) stores the notified_hosts, NOT new_task :-|
                     if isinstance(task, Handler):
                         if run_once:
                             task.clear_hosts()

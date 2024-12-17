@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 import traceback
+import typing as t
 
 from collections.abc import Sequence
 
@@ -386,3 +387,9 @@ class AnsibleFilterTypeError(AnsibleTemplateError, TypeError):
 class AnsiblePluginNotFound(AnsiblePluginError):
     """ Indicates we did not find an Ansible plugin """
     pass
+
+
+class AnsibleSendControllerTaskResult(AnsibleError):
+    """Indicates a task failed on the controller before being sent to a worker"""
+    def __init__(self, result: dict[str, t.Any]):
+        self.result = result

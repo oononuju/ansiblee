@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import typing as t
+
 from ansible import constants as C
 from ansible import context
 from ansible.playbook.attribute import FieldAttribute
@@ -174,7 +176,7 @@ class PlayContext(Base):
         # Not every cli that uses PlayContext has these command line args so have a default
         self.start_at_task = context.CLIARGS.get('start_at_task', None)  # Else default
 
-    def set_task_and_variable_override(self, task, variables, templar):
+    def set_task_and_variable_override(self, task, variables: t.Mapping[str, t.Any], templar) -> t.Self:
         """
         Sets attributes from the task if they are set, which will override
         those from the play.
@@ -311,7 +313,7 @@ class PlayContext(Base):
     def set_become_plugin(self, plugin):
         self._become_plugin = plugin
 
-    def update_vars(self, variables):
+    def update_vars(self, variables: t.MutableMapping[str, t.Any]):
         """
         Adds 'magic' variables relating to connections to the variable dictionary provided.
         In case users need to access from the play, this is a legacy from runner.

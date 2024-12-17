@@ -32,7 +32,7 @@ DOCUMENTATION = """
 import time
 
 from ansible import constants as C
-from ansible.errors import AnsibleError, AnsibleParserError
+from ansible.errors import AnsibleError, AnsibleParserError, AnsibleSendControllerTaskResult
 from ansible.playbook.handler import Handler
 from ansible.playbook.included_file import IncludedFile
 from ansible.plugins.loader import action_loader
@@ -142,8 +142,6 @@ class StrategyModule(StrategyBase):
                             if same_tasks >= throttle:
                                 break
 
-                        # advance the host, mark the host blocked, and queue it
-                        self._blocked_hosts[host_name] = True
                         iterator.set_state_for_host(host.name, state)
                         if isinstance(task, Handler):
                             task.remove_host(host)
@@ -171,27 +169,47 @@ class StrategyModule(StrategyBase):
                             else:
                                 display.warning("Using run_once with the free strategy is not currently supported. This task will still be "
                                                 "executed for every host in the inventory list.")
+                        new_task = task
+                        new_play_context = play_context
+                        try:
+                            loop_e = None
+                            try:
+                                if task.loop is not None or task.loop_with is not None:
+                                    self._unroll_loop(host, task, task_vars, play_context, iterator)
+                                    continue
+                            except AnsibleSendControllerTaskResult as e:
+                                loop_e = e
 
-                        if task.action in C._ACTION_META:
-                            if self._host_pinned:
-                                meta_task_dummy_results_count += 1
-                                workers_free -= 1
-                            self._execute_meta(task, play_context, iterator, target_host=host)
-                            self._blocked_hosts[host_name] = False
-                        else:
-                            # handle step if needed, skip meta actions as they are used internally
-                            if not self._step or self._take_step(task, host_name):
-                                if task.any_errors_fatal:
-                                    display.warning("Using any_errors_fatal with the free strategy is not supported, "
-                                                    "as tasks are executed independently on each host")
-                                if isinstance(task, Handler):
-                                    self._tqm.send_callback('v2_playbook_on_handler_task_start', task)
-                                else:
-                                    self._tqm.send_callback('v2_playbook_on_task_start', task, is_conditional=False)
-                                self._queue_task(host, task, task_vars, play_context)
-                                # each task is counted as a worker being busy
-                                workers_free -= 1
+                            if isinstance(new_task, Handler):
+                                self._tqm.send_callback('v2_playbook_on_handler_task_start', new_task)
+                            else:
+                                self._tqm.send_callback('v2_playbook_on_task_start', new_task, is_conditional=False)
+
+                            if loop_e:
+                                raise loop_e
+
+                            # FIXME callback not sent?
+                            new_task, new_play_context = self._get_new_stuff(host, task, task_vars, play_context)
+
+                            if task.action in C._ACTION_META:
+                                if self._host_pinned:
+                                    meta_task_dummy_results_count += 1
+                                    workers_free -= 1
+                                self._execute_meta(new_task, new_play_context, iterator, target_host=host)
+                            else:
+                                # handle step if needed, skip meta actions as they are used internally
+                                if not self._step or self._take_step(new_task, host_name):
+                                    if new_task.any_errors_fatal:
+                                        display.warning("Using any_errors_fatal with the free strategy is not supported, "
+                                                        "as tasks are executed independently on each host")
+
+                                    self._queue_task(host, new_task, task_vars, new_play_context, task.action, templar)
+                                    # each task is counted as a worker being busy
+                                    workers_free -= 1
                                 del task_vars
+                        except AnsibleSendControllerTaskResult as e:
+                            workers_free -= 1
+                            self._send_controller_task_result(e.result, host, new_task, task_vars, new_play_context)
                     else:
                         display.debug("%s is blocked, skipping for now" % host_name)
 

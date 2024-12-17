@@ -53,7 +53,7 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
     for reading later.
     """
 
-    def __init__(self, final_q, task_vars, host, task, play_context, loader, variable_manager, shared_loader_obj, worker_id):
+    def __init__(self, final_q, task_vars, host, task, play_context, loader, shared_loader_obj, worker_id):
 
         super(WorkerProcess, self).__init__()
         # takes a task queue manager as the sole param:
@@ -63,7 +63,6 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
         self._task = task
         self._play_context = play_context
         self._loader = loader
-        self._variable_manager = variable_manager
         self._shared_loader_obj = shared_loader_obj
 
         # NOTE: this works due to fork, if switching to threads this should change to per thread storage of temp files
@@ -183,7 +182,6 @@ class WorkerProcess(multiprocessing_context.Process):  # type: ignore[name-defin
                 self._loader,
                 self._shared_loader_obj,
                 self._final_q,
-                self._variable_manager,
             ).run()
 
             display.debug("done running TaskExecutor() for %s/%s [%s]" % (self._host, self._task, self._task._uuid))

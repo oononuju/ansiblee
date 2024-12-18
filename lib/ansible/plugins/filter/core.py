@@ -42,53 +42,51 @@ display = Display()
 UUID_NAMESPACE_ANSIBLE = uuid.UUID('361E6D51-FAEC-444A-9079-341386DA8E2E')
 
 
-def to_yaml(a, *args, **kw):
+def to_yaml(data, *args, **kw):
     """Make verbose, human-readable yaml"""
     default_flow_style = kw.pop('default_flow_style', None)
+    allow_unicode = kw.pop('allow_unicode', True)
+    fn_name = kw.pop('filter_name', 'to_yaml')
     try:
-        transformed = yaml.dump(a, Dumper=AnsibleDumper, allow_unicode=True, default_flow_style=default_flow_style, **kw)
+        transformed = yaml.dump(data, Dumper=AnsibleDumper, allow_unicode=allow_unicode, default_flow_style=default_flow_style, **kw)
     except Exception as e:
-        raise AnsibleFilterError("to_yaml - %s" % to_native(e), orig_exc=e)
+        raise AnsibleFilterError(f"{fn_name} - {to_native(e)}", orig_exc=e)
     return to_text(transformed)
 
 
-def to_nice_yaml(a, indent=4, *args, **kw):
+def to_nice_yaml(data, indent=4, *args, **kw):
     """Make verbose, human-readable yaml"""
-    try:
-        transformed = yaml.dump(a, Dumper=AnsibleDumper, indent=indent, allow_unicode=True, default_flow_style=False, **kw)
-    except Exception as e:
-        raise AnsibleFilterError("to_nice_yaml - %s" % to_native(e), orig_exc=e)
-    return to_text(transformed)
+    kw.update({
+        'indent': indent,
+        'allow_unicode': True,
+        'default_flow_style': False,
+        'filter_name': 'to_nice_yaml',
+    })
+    return to_yaml(data, **kw)
 
 
-def to_json(a, *args, **kw):
+def to_json(data, *args, **kw):
     """ Convert the value to JSON """
-
     # defaults for filters
-    if 'vault_to_text' not in kw:
-        kw['vault_to_text'] = True
-    if 'preprocess_unsafe' not in kw:
-        kw['preprocess_unsafe'] = False
+    kw["vault_to_text"] = kw.get("vault_to_text", True)
+    kw["preprocess_unsafe"] = kw.get("preprocess_unsafe", False)
 
-    return json.dumps(a, cls=AnsibleJSONEncoder, *args, **kw)
+    return json.dumps(data, cls=AnsibleJSONEncoder, *args, **kw)
 
 
-def to_nice_json(a, indent=4, sort_keys=True, *args, **kw):
+def to_nice_json(data, indent=4, sort_keys=True, *args, **kw):
     """Make verbose, human-readable JSON"""
-    # TODO separators can be potentially exposed to the user as well
-    kw.pop('separators', None)
-    return to_json(a, indent=indent, sort_keys=sort_keys, separators=(',', ': '), *args, **kw)
+    separators = kw.pop('separators', (',', ': '))
+    return to_json(data, indent=indent, sort_keys=sort_keys, separators=separators, *args, **kw)
 
 
-def to_bool(a):
+def to_bool(data):
     """ return a bool for the arg """
-    if a is None or isinstance(a, bool):
-        return a
-    if isinstance(a, string_types):
-        a = a.lower()
-    if a in ('yes', 'on', '1', 'true', 1):
-        return True
-    return False
+    if data is None or isinstance(data, bool):
+        return data
+    if isinstance(data, string_types):
+        data = data.lower()
+    return data in ('yes', 'on', '1', 'true', 1)
 
 
 def to_datetime(string, format="%Y-%m-%d %H:%M:%S"):
@@ -109,11 +107,9 @@ def strftime(string_format, second=None, utc=False):
     return time.strftime(string_format, timefn(second))
 
 
-def quote(a):
+def quote(data):
     """ return its argument quoted for shell usage """
-    if a is None:
-        a = u''
-    return shlex.quote(to_text(a))
+    return shlex.quote(to_text(data or u''))
 
 
 def fileglob(pathname):
@@ -189,10 +185,9 @@ def ternary(value, true_val, false_val, none_val=None):
     """  value ? true_val : false_val """
     if value is None and none_val is not None:
         return none_val
-    elif bool(value):
+    if bool(value):
         return true_val
-    else:
-        return false_val
+    return false_val
 
 
 def regex_escape(string, re_type='python'):
@@ -200,7 +195,7 @@ def regex_escape(string, re_type='python'):
     string = to_text(string, errors='surrogate_or_strict', nonstring='simplerepr')
     if re_type == 'python':
         return re.escape(string)
-    elif re_type == 'posix_basic':
+    if re_type == 'posix_basic':
         # list of BRE special chars:
         # https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions
         return regex_replace(string, r'([].[^$*\\])', r'\\\1')
@@ -208,10 +203,9 @@ def regex_escape(string, re_type='python'):
     # It's similar to, but different from python regex, which is similar to,
     # but different from PCRE.  It's possible that re.escape would work here.
     # https://remram44.github.io/regex-cheatsheet/regex.html#programs
-    elif re_type == 'posix_extended':
-        raise AnsibleFilterError('Regex type (%s) not yet implemented' % re_type)
-    else:
-        raise AnsibleFilterError('Invalid regex type (%s)' % re_type)
+    if re_type == 'posix_extended':
+        raise AnsibleFilterError(f'Regex type ({re_type}) not yet implemented')
+    raise AnsibleFilterError(f'Invalid regex type ({re_type})')
 
 
 def from_yaml(data):
@@ -244,12 +238,11 @@ def rand(environment, end, start=None, step=None, seed=None):
         if not step:
             step = 1
         return r.randrange(start, end, step)
-    elif hasattr(end, '__iter__'):
+    if hasattr(end, '__iter__'):
         if start or step:
             raise AnsibleFilterError('start and step can only be used with integer values')
         return r.choice(end)
-    else:
-        raise AnsibleFilterError('random can only be used on sequences and integers')
+    raise AnsibleFilterError('random can only be used on sequences and integers')
 
 
 def randomize_list(mylist, seed=None):
@@ -308,21 +301,21 @@ def to_uuid(string, namespace=UUID_NAMESPACE_ANSIBLE):
     return to_text(uuid.uuid5(uuid_namespace, to_native(string, errors='surrogate_or_strict')))
 
 
-def mandatory(a, msg=None):
+def mandatory(data, msg=None):
     """Make a variable mandatory."""
     from jinja2.runtime import Undefined
 
-    if isinstance(a, Undefined):
-        if a._undefined_name is not None:
-            name = "'%s' " % to_text(a._undefined_name)
+    if isinstance(data, Undefined):
+        if data._undefined_name is not None:
+            name = "'%s' " % to_text(data._undefined_name)
         else:
             name = ''
 
         if msg is not None:
             raise AnsibleFilterError(to_native(msg))
-        raise AnsibleFilterError("Mandatory variable %s not defined." % name)
+        raise AnsibleFilterError(f"Mandatory variable {name} not defined.")
 
-    return a
+    return data
 
 
 def combine(*terms, **kwargs):
@@ -382,6 +375,8 @@ def comment(text, style='plain', **kw):
         }
     }
 
+    if style not in comment_styles:
+        raise AnsibleFilterError(f"Invalid option '{style}'. Available values: {', '.join(comment_styles.keys())}")
     # Pointer to the right comment type
     style_params = comment_styles[style]
 

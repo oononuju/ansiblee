@@ -82,7 +82,7 @@ class Vault(VaultBase):
             # TODO: require complexity?
             raise VaultSecretError(f"The vault secret must be at least 10 bytes (received {len(secret)}).")
 
-        salt = base64.b64decode(salt.encode())
+        salt = base64.b64decode(salt)
         derived_key = hashlib.scrypt(secret, salt=salt, n=self.get_option('iterations'), r=self.get_option('block_size'),
                                      p=self.get_option('parallelization'), dklen=self.get_option('key_length'))
 
@@ -99,7 +99,7 @@ class Vault(VaultBase):
         digest = base64.b64encode(hmac.digest(data_encryption_key, encrypted_text, hashlib.sha512))
 
         payload = dict(
-            salt=salt,
+            salt=salt.decode(),
             digest=digest.decode(),
             ciphertext=encrypted_text.decode(),
             options=self.get_options(),

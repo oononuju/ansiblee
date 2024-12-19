@@ -1,0 +1,2 @@
+bugfixes:
+  - copy - fix directory may be repeatedly created using the file module to create (https://github.com/ansible/ansible/issues/84344).

@@ -22,7 +22,7 @@ class VaultBase(AnsiblePlugin):
     # Each implementation is intended to be as standalone as possible to ease backporting.
 
     @staticmethod
-    def _import_error(lib, exception):
+    def _import_error(lib, exception) -> t.NoReturn:
         raise AnsibleError(f"Failed to import the required Python library ({lib}) on the controller's Python ({sys.executable}).") from exception
 
     @classmethod

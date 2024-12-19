@@ -1372,14 +1372,24 @@ class User(object):
             if os.path.exists(self.LOGIN_DEFS):
                 with open(self.LOGIN_DEFS, 'r') as f:
                     for line in f:
+                        # HOME_MODE has higher precedence as UMASK
+                        m = re.match(r'^HOME_MODE\s+(\d+)$', line)
+                        if m:
+                            mode = int(m.group(1), 8)
+                            break  # higher precedence
                         m = re.match(r'^UMASK\s+(\d+)$', line)
                         if m:
                             umask = int(m.group(1), 8)
                             mode = 0o777 & ~umask
-                            try:
-                                os.chmod(path, mode)
-                            except OSError as e:
-                                self.module.exit_json(failed=True, msg="%s" % to_native(e))
+                # fallback if neither HOME_MODE nor UMASK are set
+                try:
+                    mode
+                except NameError:
+                    mode = 0o755
+                try:
+                    os.chmod(path, mode)
+                except OSError as e:
+                    self.module.exit_json(failed=True, msg="%s" % to_native(e))
 
     def chown_homedir(self, uid, gid, path):
         try:

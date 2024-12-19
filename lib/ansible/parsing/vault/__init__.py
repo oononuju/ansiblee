@@ -142,7 +142,7 @@ def parse_vaulttext_envelope(b_vaulttext_envelope, default_vault_id=None, filena
     return b_ciphertext, b_version, plugin_name, vault_id
 
 
-def format_vaulttext_envelope(b_ciphertext, plugin_name, version=None, vault_id=None):
+def format_vaulttext_envelope(b_ciphertext: bytes, plugin_name: str, version: str | None = None, vault_id: str | None = None) -> bytes:
     """ Add header and format to 80 columns
 
         :arg b_ciphertext: the result from Vault encrypt plugin, as a byte string
@@ -556,12 +556,12 @@ class VaultLib:
 
         try:
             # In the future eliminate to_bytes calls
-            b_ciphertext = this_plugin.encrypt(b_plaintext, secret, options)
+            ciphertext = this_plugin.encrypt(b_plaintext, secret, options)
         except (ValueError, TypeError) as e:
             raise AnsibleVaultFormatError from e
 
         # format the data for output to the file
-        b_vaulttext = format_vaulttext_envelope(b_ciphertext,
+        b_vaulttext = format_vaulttext_envelope(ciphertext.encode('utf-8'),
                                                 this_plugin.__module__.rpartition('.')[-1],
                                                 vault_id=vault_id)
         return b_vaulttext

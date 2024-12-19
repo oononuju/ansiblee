@@ -25,6 +25,7 @@ try:
     from cryptography.hazmat.primitives.asymmetric import padding
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_pem_private_key, load_ssh_public_key, load_ssh_private_key
+    from cryptography.exceptions import UnsupportedAlgorithm
     CRYPT_ERROR = None
 except Exception as e:
     # no import error as sometimes with FIPS weird exception types issued
@@ -74,14 +75,20 @@ class Vault(VaultBase):
         b_key = secret.bytes
         try:  # try to load as ssh key, if you fail, generic rsa key,
             public_key: t.Any = load_ssh_public_key(b_key)
-        except ValueError as e:
+        except (ValueError, UnsupportedAlgorithm)  as e:
             try:  # different class inheritance but both can have encrypt/decrypt
                 public_key = load_pem_public_key(secret.bytes)
             except ValueError as e2:
                 raise ValueError(f"Could not load vault secret public key, as ssh: {e!r}.\n Nor as pem: {e2!r}")
+        except Exception as e:
+                raise ValueError(f"Unexpected error while loading key for encryption") from e
 
         if hasattr(public_key, 'encrypt'):  # not all loadable keys are valid for encryption (yet?)
-            encrypted_text = public_key.encrypt(plaintext, self._padding)
+            try:
+                encrypted_text = public_key.encrypt(plaintext, self._padding)
+            except Exception as e:
+                print(dir(public_key),'yop')
+                raise e
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to encrypt")
 
@@ -92,11 +99,14 @@ class Vault(VaultBase):
         b_key = secret.bytes
         try:  # see encrypt comments
             private_key: t.Any = load_pem_private_key(b_key, password=None)
-        except ValueError as e:
+        except (ValueError, UnsupportedAlgorithm)  as e:
             try:
                 private_key = load_ssh_private_key(b_key, password=None)
             except ValueError as e2:
                 raise ValueError(f"Could not load vault secret private key, as pem: {e!r}.\n Nor as ssh: {e2!r}")
+        except Exception as e:
+                raise ValueError(f"Unexpected error while loading key for decryption") from e
+
 
         if hasattr(private_key, 'decrypt'):
             cipher_text = base64.b64decode(vaulttext)

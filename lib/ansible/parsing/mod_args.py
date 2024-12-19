@@ -140,10 +140,19 @@ class ModuleArgsParser:
         """
 
         tokens = split_args(module_string)
+
+        for t in tokens:
+            if t.startswith('module='):  # allows for action: module=<action name>
+                action = t.lstrip('module=').strip()
+                tokens.remove(t)
+                break
+        else:  # this is action: <action name> case
+            action = tokens[0].strip()
+
         if len(tokens) > 1:
-            return (tokens[0].strip(), " ".join(tokens[1:]))
+            return (action, " ".join(tokens[1:]))
         else:
-            return (tokens[0].strip(), "")
+            return (action, "")
 
     def _normalize_parameters(self, thing, action=None, additional_args=None):
         """

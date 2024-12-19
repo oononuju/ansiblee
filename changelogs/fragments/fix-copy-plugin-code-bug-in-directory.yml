@@ -1,2 +1,2 @@
 bugfixes:
-  - fix bug in copy plugin where directory may be repeatedly using the file module to create
+  - copy - fix directory may be repeatedly created using the file module to create (https://github.com/ansible/ansible/issues/84344).

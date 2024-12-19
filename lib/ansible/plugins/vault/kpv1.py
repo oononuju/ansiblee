@@ -64,6 +64,7 @@ class Vault(VaultBase):
             self._padding = None
             VaultBase._import_error('cryptography', CRYPT_ERROR)
         else:
+            # Once lib supports more padding options, make this configurable via options
             self._padding = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
     def encrypt(self, plaintext: bytes, secret: VaultSecret, options: dict[str, t.Any]) -> str:
@@ -71,15 +72,15 @@ class Vault(VaultBase):
         NoParams(**options)
 
         b_key = secret.bytes
-        try:  # try to load as ssh key, if you fail, generic rsa key
-            public_key = load_ssh_public_key(b_key)
+        try:  # try to load as ssh key, if you fail, generic rsa key,
+            public_key: t.Any = load_ssh_public_key(b_key)
         except ValueError as e:
-            try:
-                public_key: t.Any = load_pem_public_key(secret.bytes)
+            try:  # different class inheritance but both can have encrypt/decrypt
+                public_key = load_pem_public_key(secret.bytes)
             except ValueError as e2:
                 raise ValueError(f"Could not load vault secret public key, as ssh: {e!r}.\n Nor as pem: {e2!r}")
 
-        if hasattr(public_key, 'encrypt'):  # not all loadable keys are valid for encryption
+        if hasattr(public_key, 'encrypt'):  # not all loadable keys are valid for encryption (yet?)
             encrypted_text = public_key.encrypt(plaintext, self._padding)
         else:
             raise ValueError(f"Cannot use key of type '{type(public_key)}' to encrypt")
@@ -89,8 +90,8 @@ class Vault(VaultBase):
     def decrypt(self, vaulttext: str, secret: VaultSecret) -> bytes:
 
         b_key = secret.bytes
-        try:
-            private_key = load_pem_private_key(b_key, password=None)
+        try:  # see encrypt comments
+            private_key: t.Any = load_pem_private_key(b_key, password=None)
         except ValueError as e:
             try:
                 private_key = load_ssh_private_key(b_key, password=None)

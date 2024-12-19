@@ -197,7 +197,7 @@ def load_vault_plugin(plugin_name: str | None) -> type[VaultBase]:
     if not plugin:
         raise AnsibleError(f"Unable to load vault plugin named {plugin_name}")
 
-    return plugin()
+    return plugin
 
 
 def verify_secret_is_not_empty(secret, msg=None):

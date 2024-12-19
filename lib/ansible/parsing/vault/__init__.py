@@ -522,7 +522,7 @@ class VaultLib:
     ) -> bytes:
         """Vault encrypt a piece of data.
 
-        :arg plaintext: a text or byte string to encrypt.
+        :arg plaintext: text or byte string to encrypt.
         :returns: a utf-8 encoded byte str of encrypted data.  The string
             contains a header identifying this as vault encrypted data and
             formatted to newline terminated lines of 80 characters.  This is
@@ -538,7 +538,7 @@ class VaultLib:
             else:
                 raise AnsibleVaultError("A vault password must be specified to encrypt data")
 
-        b_plaintext = to_bytes(plaintext, errors='surrogate_or_strict')
+        b_plaintext = plaintext.encode('utf-8') if isinstance(plaintext, str) else plaintext
         if is_encrypted(b_plaintext):
             raise AnsibleError("input is already encrypted")
 
@@ -556,7 +556,7 @@ class VaultLib:
 
         try:
             # In the future eliminate to_bytes calls
-            b_ciphertext = to_bytes(this_plugin.encrypt(b_plaintext, secret, options))
+            b_ciphertext = this_plugin.encrypt(b_plaintext, secret, options)
         except (ValueError, TypeError) as e:
             raise AnsibleVaultFormatError from e
 
@@ -583,7 +583,7 @@ class VaultLib:
     def decrypt_and_get_vault_id(self, vaulttext: str | bytes, filename: str | None = None, obj: t.Any = None):
         """ Decrypt a piece of vault encrypted data.
 
-        :arg vaulttext: a string to decrypt.  Since vault encrypted data is an
+        :arg vaulttext: What we waant to decrypt.  Since vault encrypted data is an
             ascii text format this can be either a byte str or unicode string.
         :kwarg filename: a filename that the data came from.  This is only
             used to make better error messages in case the data cannot be
@@ -591,7 +591,7 @@ class VaultLib:
         :returns: a byte string containing the decrypted data and the vault-id vault-secret that was used
 
         """
-        b_vaulttext = to_bytes(vaulttext, errors='strict', encoding='utf-8')
+        b_vaulttext = vaulttext.encode('utf-8') if isinstance(vaulttext, str) else vaulttext
 
         if not self.secrets:
             msg = "A vault password must be specified to decrypt data"
@@ -649,8 +649,7 @@ class VaultLib:
             try:
                 # secret = self.secrets[vault_secret_id]
                 display.vvvv(u'Trying secret %s for vault_id=%s' % (to_text(vault_secret), to_text(vault_secret_id)))
-                # FIXME: if/when we fix the internals, the to_text won't be necessary
-                b_plaintext = this_plugin.decrypt(to_text(b_vaulttext), vault_secret)
+                b_plaintext = this_plugin.decrypt(b_vaulttext.decode('utf-8'), vault_secret)
                 vault_id_used = vault_secret_id
                 vault_secret_used = vault_secret
                 file_slug = ''

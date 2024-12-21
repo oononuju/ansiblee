@@ -17,7 +17,10 @@
 
 from __future__ import annotations
 
+import typing as t
+
 import ansible.constants as C
+
 from ansible.errors import AnsibleParserError, AnsibleError, AnsibleAssertionError
 from ansible.module_utils.six import string_types
 from ansible.module_utils.common.sentinel import Sentinel
@@ -112,26 +115,24 @@ class ModuleArgsParser:
     Args may also be munged for certain shell command parameters.
     """
 
-    def __init__(self, task_ds=None, collection_list=None):
+    def __init__(self, task_ds: dict[str, t.Any] | None = None, collection_list: list[str] | None = None):
         task_ds = {} if task_ds is None else task_ds
 
         if not isinstance(task_ds, dict):
-            raise AnsibleAssertionError("the type of 'task_ds' should be a dict, but is a %s" % type(task_ds))
+            raise AnsibleAssertionError(f"The type of 'task_ds' should be a dict, but is a {type(task_ds)}")
+
         self._task_ds = task_ds
         self._collection_list = collection_list
+        self.resolved_action = None
+
+        # store the valid Task/Handler attrs for quick access
         # delayed local imports to prevent circular import
         from ansible.playbook.task import Task
         from ansible.playbook.handler import Handler
-        # store the valid Task/Handler attrs for quick access
-        self._task_attrs = set(Task.fattributes)
-        self._task_attrs.update(set(Handler.fattributes))
         # HACK: why are these not FieldAttributes on task with a post-validate to check usage?
-        self._task_attrs.update(['local_action', 'static'])
-        self._task_attrs = frozenset(self._task_attrs)
+        self._task_attrs = frozenset(set(Task.fattributes).union(set(Handler.fattributes)).union(set(['local_action', 'static'])))
 
-        self.resolved_action = None
-
-    def _split_module_string(self, module_string):
+    def _split_module_string(self, module_string: str | dict[str, t.Any]) -> tuple[str, str]:
         """
         when module names are expressed like:
         action: copy src=a dest=b
@@ -140,12 +141,26 @@ class ModuleArgsParser:
         """
 
         tokens = split_args(module_string)
-        if len(tokens) > 1:
-            return (tokens[0].strip(), " ".join(tokens[1:]))
-        else:
-            return (tokens[0].strip(), "")
 
-    def _normalize_parameters(self, thing, action=None, additional_args=None):
+        for token in tokens:  # pylint: disable=modified-iterating-list, locally-disabled
+            if token.startswith('module='):  # allows for action: module=<action name>
+                action = token.lstrip('module=').strip()
+                tokens.remove(token)
+                break
+        else:  # this is action: <action name> case
+            action = tokens[0].strip()
+
+        if len(tokens) > 1:
+            return (action, " ".join(tokens[1:]))
+        else:
+            return (action, "")
+
+    def _normalize_parameters(
+        self,
+        thing: dict[str, t.Any] | str | bytes,
+        action: str | None = None,
+        additional_args: str | dict[str, t.Any] | None = None
+    ) -> tuple[str, dict[str, t.Any]]:
         """
         arguments can be fuzzy.  Deal with all the forms.
         """
@@ -204,7 +219,7 @@ class ModuleArgsParser:
 
         return (action, final_args)
 
-    def _normalize_new_style_args(self, thing, action):
+    def _normalize_new_style_args(self, thing: dict[str, t.Any] | str | bytes | None, action: str) -> dict[str, t.Any] | None:
         """
         deals with fuzziness in new style module invocations
         accepting key=value pairs and dictionaries, and returns
@@ -228,10 +243,10 @@ class ModuleArgsParser:
             # this can happen with modules which take no params, like ping:
             args = None
         else:
-            raise AnsibleParserError("unexpected parameter type in action: %s" % type(thing), obj=self._task_ds)
+            raise AnsibleParserError(f"unexpected parameter type in action: {type(thing)}", obj=self._task_ds)
         return args
 
-    def _normalize_old_style_args(self, thing):
+    def _normalize_old_style_args(self, thing: dict[str, t.Any] | str | bytes | None) -> tuple[str, dict[str, t.Any]]:
         """
         deals with fuzziness in old-style (action/local_action) module invocations
         returns tuple of (module_name, dictionary_args)
@@ -259,9 +274,9 @@ class ModuleArgsParser:
 
         elif isinstance(thing, string_types):
             # form is like:  action: copy src=a dest=b
-            (action, args) = self._split_module_string(thing)
+            (action, module_args) = self._split_module_string(thing)
             check_raw = action in FREEFORM_ACTIONS
-            args = parse_kv(args, check_raw=check_raw)
+            args = parse_kv(module_args, check_raw=check_raw)
 
         else:
             # need a dict or a string, so giving up
@@ -269,7 +284,7 @@ class ModuleArgsParser:
 
         return (action, args)
 
-    def parse(self, skip_action_validation=False):
+    def parse(self, skip_action_validation: bool = False) -> tuple[str | None, dict[str, t.Any], str | Sentinel]:
         """
         Given a task in one of the supported forms, parses and returns
         returns the action, arguments, and delegate_to values for the
@@ -280,7 +295,7 @@ class ModuleArgsParser:
 
         action = None
         delegate_to = self._task_ds.get('delegate_to', Sentinel)
-        args = dict()
+        args: dict[str, t.Any] = dict()
 
         # This is the standard YAML form for command-type modules. We grab
         # the args and pass them in as additional arguments, which can/will

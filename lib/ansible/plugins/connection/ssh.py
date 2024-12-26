@@ -56,7 +56,9 @@ DOCUMENTATION = """
               - name: ansible_ssh_host_key_checking
                 version_added: '2.5'
       password:
-          description: Authentication password for the O(remote_user). Can be supplied as CLI option.
+          description:
+              - Authentication password for the O(remote_user). Can be supplied as CLI option.
+              - Note that ansible_ssh_pass is used as an SSH key passphrase when ansible_sshpass_prompt is configured.
           type: string
           vars:
               - name: ansible_password

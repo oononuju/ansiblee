@@ -5,24 +5,12 @@
 from __future__ import annotations
 
 import datetime
-import functools
-import json
 import re
 import shlex
 import typing as t
 from tokenize import COMMENT, TokenInfo
 
 import astroid
-
-# support pylint 2.x and 3.x -- remove when supporting only 3.x
-try:
-    from pylint.interfaces import IAstroidChecker, ITokenChecker
-except ImportError:
-    class IAstroidChecker:
-        """Backwards compatibility for 2.x / 3.x support."""
-
-    class ITokenChecker:
-        """Backwards compatibility for 2.x / 3.x support."""
 
 try:
     from pylint.checkers.utils import check_messages
@@ -153,7 +141,6 @@ class AnsibleDeprecatedChecker(BaseChecker):
     has not passed or met the time for removal
     """
 
-    __implements__ = (IAstroidChecker,)
     name = 'deprecated'
     msgs = MSGS
 
@@ -298,8 +285,6 @@ class AnsibleDeprecatedCommentChecker(BaseTokenChecker):
     has not passed or met the time for removal
     """
 
-    __implements__ = (ITokenChecker,)
-
     name = 'deprecated-comment'
     msgs = {
         'E9601': ("Deprecated core version (%r) found: %s",
@@ -325,15 +310,6 @@ class AnsibleDeprecatedCommentChecker(BaseTokenChecker):
                   "Used when a '#deprecated:' comment specifies an invalid version",
                   {'minversion': (2, 6)}),
     }
-
-    options = (
-        ('min-python-version-db', {
-            'default': None,
-            'type': 'string',
-            'metavar': '<path>',
-            'help': 'The path to the DB mapping paths to minimum Python versions.',
-        }),
-    )
 
     def process_tokens(self, tokens: list[TokenInfo]) -> None:
         for token in tokens:
@@ -365,15 +341,8 @@ class AnsibleDeprecatedCommentChecker(BaseTokenChecker):
             )
         return data
 
-    @functools.cached_property
-    def _min_python_version_db(self) -> dict[str, str]:
-        """A dictionary of absolute file paths and their minimum required Python version."""
-        with open(self.linter.config.min_python_version_db) as db_file:
-            return json.load(db_file)
-
     def _process_python_version(self, token: TokenInfo, data: dict[str, str]) -> None:
-        current_file = self.linter.current_file
-        check_version = self._min_python_version_db[current_file]
+        check_version = '.'.join(map(str, self.linter.config.py_version))
 
         try:
             if LooseVersion(data['python_version']) < LooseVersion(check_version):

@@ -33,7 +33,7 @@ display = Display()
 class ActionModule(ActionBase):
 
     def run(self, tmp=None, task_vars=None):
-        ''' handler for fetch operations '''
+        """ handler for fetch operations """
         if task_vars is None:
             task_vars = dict()
 
@@ -178,9 +178,8 @@ class ActionModule(ActionBase):
                     self._connection.fetch_file(source, dest)
                 else:
                     try:
-                        f = open(to_bytes(dest, errors='surrogate_or_strict'), 'wb')
-                        f.write(remote_data)
-                        f.close()
+                        with open(to_bytes(dest, errors='surrogate_or_strict'), 'wb') as f:
+                            f.write(remote_data)
                     except (IOError, OSError) as e:
                         raise AnsibleActionFail("Failed to fetch the file: %s" % e)
                 new_checksum = secure_hash(dest)

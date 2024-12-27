@@ -142,9 +142,8 @@ class ActionModule(ActionBase):
             result['message'] = err_msg
         elif self.hash_behaviour is not None and self.hash_behaviour != C.DEFAULT_HASH_BEHAVIOUR:
             merge_hashes = self.hash_behaviour == 'merge'
-            for key, value in results.items():
-                old_value = task_vars.get(key, None)
-                results[key] = combine_vars(old_value, value, merge=merge_hashes)
+            existing_variables = {k: v for k, v in task_vars.items() if k in results}
+            results = combine_vars(existing_variables, results, merge=merge_hashes)
 
         result['ansible_included_var_files'] = self.included_files
         result['ansible_facts'] = results
@@ -237,7 +236,8 @@ class ActionModule(ActionBase):
             b_data, show_content = self._loader._get_file_contents(filename)
             data = to_text(b_data, errors='surrogate_or_strict')
 
-            self.show_content = show_content
+            self.show_content &= show_content  # mask all results if any file was encrypted
+
             data = self._loader.load(data, file_name=filename, show_content=show_content)
             if not data:
                 data = dict()

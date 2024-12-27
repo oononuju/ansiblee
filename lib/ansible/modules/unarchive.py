@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: unarchive
 version_added: '1.4'
@@ -150,9 +150,9 @@ seealso:
 - module: community.general.iso_extract
 - module: community.windows.win_unzip
 author: Michael DeHaan
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
 - name: Extract foo.tgz into /var/lib/foo
   ansible.builtin.unarchive:
     src: foo.tgz
@@ -177,9 +177,9 @@ EXAMPLES = r'''
     extra_opts:
     - --transform
     - s/^xxx/yyy/
-'''
+"""
 
-RETURN = r'''
+RETURN = r"""
 dest:
   description: Path to the destination directory.
   returned: always
@@ -237,11 +237,11 @@ uid:
   returned: always
   type: int
   sample: 1000
-'''
+"""
 
 import binascii
 import codecs
-import datetime
+import ctypes
 import fnmatch
 import grp
 import os
@@ -263,6 +263,13 @@ from ansible.module_utils.urls import fetch_file
 from shlex import quote
 from zipfile import BadZipFile
 
+try:
+    from functools import cache
+except ImportError:
+    # Python < 3.9
+    from functools import lru_cache
+    cache = lru_cache(maxsize=None)
+
 # String from tar that shows the tar contents are different from the
 # filesystem
 OWNER_DIFF_RE = re.compile(r': Uid differs$')
@@ -276,10 +283,24 @@ ZIP_FILE_MODE_RE = re.compile(r'([r-][w-][SsTtx-]){3}')
 INVALID_OWNER_RE = re.compile(r': Invalid owner')
 INVALID_GROUP_RE = re.compile(r': Invalid group')
 SYMLINK_DIFF_RE = re.compile(r': Symlink differs$')
+CONTENT_DIFF_RE = re.compile(r': Contents differ$')
+SIZE_DIFF_RE = re.compile(r': Size differs$')
+
+
+@cache
+def _y2038_impacted():
+    """Determine if the system has 64-bit time_t."""
+    if hasattr(ctypes, "c_time_t"):  # Python >= 3.12
+        return ctypes.sizeof(ctypes.c_time_t) < 8
+    try:
+        time.gmtime(2**31)
+    except OverflowError:
+        return True
+    return False
 
 
 def crc32(path, buffer_size):
-    ''' Return a CRC32 checksum of a file '''
+    """ Return a CRC32 checksum of a file """
 
     crc = binascii.crc32(b'')
     with open(path, 'rb') as f:
@@ -289,7 +310,7 @@ def crc32(path, buffer_size):
 
 
 def shell_escape(string):
-    ''' Quote meta-characters in the args for the unix shell '''
+    """ Quote meta-characters in the args for the unix shell """
     return re.sub(r'([^A-Za-z0-9_])', r'\\\1', string)
 
 
@@ -320,7 +341,7 @@ class ZipArchive(object):
         )
 
     def _permstr_to_octal(self, modestr, umask):
-        ''' Convert a Unix permission string (rw-r--r--) into a mode (0644) '''
+        """ Convert a Unix permission string (rw-r--r--) into a mode (0644) """
         revstr = modestr[::-1]
         mode = 0
         for j in range(0, 3):
@@ -403,6 +424,29 @@ class ZipArchive(object):
 
             archive.close()
         return self._files_in_archive
+
+    def _valid_time_stamp(self, timestamp_str):
+        """ Return a valid time object from the given time string """
+        DT_RE = re.compile(r'^(\d{4})(\d{2})(\d{2})\.(\d{2})(\d{2})(\d{2})$')
+        match = DT_RE.match(timestamp_str)
+        epoch_date_time = (1980, 1, 1, 0, 0, 0, 0, 0, 0)
+        if match:
+            try:
+                if int(match.groups()[0]) < 1980:
+                    date_time = epoch_date_time
+                elif int(match.groups()[0]) >= 2038 and _y2038_impacted():
+                    date_time = (2038, 1, 1, 0, 0, 0, 0, 0, 0)
+                elif int(match.groups()[0]) > 2107:
+                    date_time = (2107, 12, 31, 23, 59, 59, 0, 0, 0)
+                else:
+                    date_time = (int(m) for m in match.groups() + (0, 0, 0))
+            except ValueError:
+                date_time = epoch_date_time
+        else:
+            # Assume epoch date
+            date_time = epoch_date_time
+
+        return time.mktime(time.struct_time(date_time))
 
     def is_unarchived(self):
         # BSD unzip doesn't support zipinfo listings with timestamp.
@@ -602,8 +646,7 @@ class ZipArchive(object):
             # Note: this timestamp calculation has a rounding error
             # somewhere... unzip and this timestamp can be one second off
             # When that happens, we report a change and re-unzip the file
-            dt_object = datetime.datetime(*(time.strptime(pcs[6], '%Y%m%d.%H%M%S')[0:6]))
-            timestamp = time.mktime(dt_object.timetuple())
+            timestamp = self._valid_time_stamp(pcs[6])
 
             # Compare file timestamps
             if stat.S_ISREG(st.st_mode):
@@ -872,16 +915,15 @@ class TgzArchive(object):
                 out += line + '\n'
             if not self.file_args['mode'] and MODE_DIFF_RE.search(line):
                 out += line + '\n'
-            if MOD_TIME_DIFF_RE.search(line):
-                out += line + '\n'
-            if MISSING_FILE_RE.search(line):
-                out += line + '\n'
-            if INVALID_OWNER_RE.search(line):
-                out += line + '\n'
-            if INVALID_GROUP_RE.search(line):
-                out += line + '\n'
-            if SYMLINK_DIFF_RE.search(line):
-                out += line + '\n'
+            differ_regexes = [
+                MOD_TIME_DIFF_RE, MISSING_FILE_RE, INVALID_OWNER_RE,
+                INVALID_GROUP_RE, SYMLINK_DIFF_RE, CONTENT_DIFF_RE,
+                SIZE_DIFF_RE
+            ]
+            for regex in differ_regexes:
+                if regex.search(line):
+                    out += line + '\n'
+
         if out:
             unarchived = False
         return dict(unarchived=unarchived, rc=rc, out=out, err=err, cmd=cmd)

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from ansible.module_utils.facts.network import fc_wwn
-from unittest.mock import Mock
+import pytest
 
 
 # AIX lsdev
@@ -14,7 +14,7 @@ fcs0 Defined   00-00 8Gb PCI Express Dual Port FC Adapter (df1000f114108a03)
 fcs1 Available 04-00 8Gb PCI Express Dual Port FC Adapter (df1000f114108a03)
 """
 
-# a bit cutted output of lscfg (from Z0 to ZC)
+# slightly cut output of lscfg (from Z0 to ZC)
 LSCFG_OUTPUT = """
   fcs1             U78CB.001.WZS00ZS-P1-C9-T1  8Gb PCI Express Dual Port FC Adapter (df1000f114108a03)
 
@@ -89,7 +89,7 @@ FCMSUTIL_OUT = """
 """
 
 
-def mock_get_bin_path(cmd, required=False, opt_dirs=None, warning=None):
+def mock_get_bin_path(cmd, required=False, opt_dirs=None):
     cmds = {
         'lsdev': '/usr/sbin/lsdev',
         'lscfg': '/usr/sbin/lscfg',
@@ -100,31 +100,45 @@ def mock_get_bin_path(cmd, required=False, opt_dirs=None, warning=None):
     return cmds.get(cmd, None)
 
 
-def mock_run_command(cmd):
-    rc = 0
-    COMMANDS = {
-        '/usr/sbin/lsdev': LSDEV_OUTPUT,
-        '/usr/sbin/lscfg': LSCFG_OUTPUT,
-        '/usr/sbin/fcinfo': FCINFO_OUTPUT,
-        '/usr/bin/ioscan': IOSCAN_OUT,
-        '/opt/fcms/bin/fcmsutil': FCMSUTIL_OUT,
-    }
-    result = COMMANDS.get(cmd.split()[0])
-    if result is None:
-        rc = 1
-        result = 'Error'
-    return (rc, result, '')
-
-
-def test_get_fc_wwn_info(mocker):
-    module = Mock()
+@pytest.mark.parametrize(
+    ("test_input", "expected"),
+    [
+        pytest.param(
+            {
+                "platform": "aix6",
+                "mock_run_command": [(0, LSDEV_OUTPUT, ""), (0, LSCFG_OUTPUT, "")],
+            },
+            ["10000090FA551508"],
+            id="aix6",
+        ),
+        pytest.param(
+            {
+                "platform": "sunos5",
+                "mock_run_command": [
+                    (0, FCINFO_OUTPUT, ""),
+                ],
+            },
+            ["10000090fa1658de"],
+            id="sunos5",
+        ),
+        pytest.param(
+            {
+                "platform": "hp-ux11",
+                "mock_run_command": [(0, IOSCAN_OUT, ""), (0, FCMSUTIL_OUT, "")],
+            },
+            ["0x50060b00006975ec"],
+            id="hp-ux11",
+        ),
+    ],
+)
+def test_get_fc_wwn_info(mocker, test_input, expected):
+    module = mocker.MagicMock()
     inst = fc_wwn.FcWwnInitiatorFactCollector()
 
-    mocker.patch.object(module, 'get_bin_path', side_effect=mock_get_bin_path)
-    mocker.patch.object(module, 'run_command', side_effect=mock_run_command)
-
-    d = {'aix6': ['10000090FA551508'], 'sunos5': ['10000090fa1658de'], 'hp-ux11': ['0x50060b00006975ec']}
-    for key, value in d.items():
-        mocker.patch('sys.platform', key)
-        wwn_expected = {"fibre_channel_wwn": value}
-        assert wwn_expected == inst.collect(module=module)
+    mocker.patch("sys.platform", test_input["platform"])
+    mocker.patch.object(module, "get_bin_path", side_effect=mock_get_bin_path)
+    mocker.patch.object(
+        module, "run_command", side_effect=test_input["mock_run_command"]
+    )
+    wwn_expected = {"fibre_channel_wwn": expected}
+    assert wwn_expected == inst.collect(module=module)

@@ -29,7 +29,7 @@ from ansible.utils import context_objects as co
 from ansible.utils.display import Display
 
 
-@pytest.fixture(autouse='function')
+@pytest.fixture(autouse=True)
 def reset_cli_args():
     co.GlobalCLIArgs._Singleton__instance = None
     # Required to initialise the GalaxyAPI object
@@ -40,7 +40,7 @@ def reset_cli_args():
 
 @pytest.fixture()
 def collection_artifact(tmp_path_factory):
-    ''' Creates a collection artifact tarball that is ready to be published '''
+    """ Creates a collection artifact tarball that is ready to be published """
     output_dir = to_text(tmp_path_factory.mktemp('test-ÅÑŚÌβŁÈ Output'))
 
     tar_path = os.path.join(output_dir, 'namespace-collection-v1.0.0.tar.gz')
@@ -66,7 +66,7 @@ def get_test_galaxy_api(url, version, token_ins=None, token_value=None, no_cache
     token_value = token_value or "my token"
     token_ins = token_ins or GalaxyToken(token_value)
     api = GalaxyAPI(None, "test", url, no_cache=no_cache)
-    # Warning, this doesn't test g_connect() because _availabe_api_versions is set here.  That means
+    # Warning, this doesn't test g_connect() because _available_api_versions is set here.  That means
     # that urls for v2 servers have to append '/api/' themselves in the input data.
     api._available_api_versions = {version: '%s' % version}
     api.token = token_ins

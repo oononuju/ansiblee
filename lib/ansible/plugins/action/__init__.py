@@ -8,8 +8,8 @@ from __future__ import annotations
 import base64
 import json
 import os
-import random
 import re
+import secrets
 import shlex
 import stat
 import tempfile
@@ -51,12 +51,12 @@ def _validate_utf8_json(d):
 
 class ActionBase(ABC):
 
-    '''
+    """
     This class is the base class for all action plugins, and defines
     code common to all actions. The base class handles the connection
     by putting/getting files and executing commands based on the current
     action in use.
-    '''
+    """
 
     # A set of valid arguments
     _VALID_ARGS = frozenset([])  # type: frozenset[str]
@@ -146,7 +146,7 @@ class ActionBase(ABC):
         Be cautious when directly passing ``new_module_args`` directly to a
         module invocation, as it will contain the defaults, and not only
         the args supplied from the task. If you do this, the module
-        should not define ``mututally_exclusive`` or similar.
+        should not define ``mutually_exclusive`` or similar.
 
         This code is roughly copied from the ``validate_argument_spec``
         action plugin for use by other action plugins.
@@ -219,10 +219,10 @@ class ActionBase(ABC):
         return False
 
     def _configure_module(self, module_name, module_args, task_vars):
-        '''
+        """
         Handles the loading and templating of the module code through the
         modify_module() function.
-        '''
+        """
         if self._task.delegate_to:
             use_vars = task_vars.get('ansible_delegated_vars')[self._task.delegate_to]
         else:
@@ -330,9 +330,9 @@ class ActionBase(ABC):
         return (module_style, module_shebang, module_data, module_path)
 
     def _compute_environment_string(self, raw_environment_out=None):
-        '''
+        """
         Builds the environment string to be used when executing the remote task.
-        '''
+        """
 
         final_environment = dict()
         if self._task.environment is not None:
@@ -363,16 +363,16 @@ class ActionBase(ABC):
         return self._connection._shell.env_prefix(**final_environment)
 
     def _early_needs_tmp_path(self):
-        '''
+        """
         Determines if a tmp path should be created before the action is executed.
-        '''
+        """
 
         return getattr(self, 'TRANSFERS_FILES', False)
 
     def _is_pipelining_enabled(self, module_style, wrap_async=False):
-        '''
+        """
         Determines if we are required and can do pipelining
-        '''
+        """
 
         try:
             is_enabled = self._connection.get_option('pipelining')
@@ -400,15 +400,15 @@ class ActionBase(ABC):
         return all(conditions)
 
     def _get_admin_users(self):
-        '''
+        """
         Returns a list of admin users that are configured for the current shell
         plugin
-        '''
+        """
 
         return self.get_shell_option('admin_users', ['root'])
 
     def _get_remote_addr(self, tvars):
-        ''' consistently get the 'remote_address' for the action plugin '''
+        """ consistently get the 'remote_address' for the action plugin """
         remote_addr = tvars.get('delegated_vars', {}).get('ansible_host', tvars.get('ansible_host', tvars.get('inventory_hostname', None)))
         for variation in ('remote_addr', 'host'):
             try:
@@ -422,7 +422,7 @@ class ActionBase(ABC):
         return remote_addr
 
     def _get_remote_user(self):
-        ''' consistently get the 'remote_user' for the action plugin '''
+        """ consistently get the 'remote_user' for the action plugin """
         # TODO: use 'current user running ansible' as fallback when moving away from play_context
         # pwd.getpwuid(os.getuid()).pw_name
         remote_user = None
@@ -437,10 +437,10 @@ class ActionBase(ABC):
         return remote_user
 
     def _is_become_unprivileged(self):
-        '''
+        """
         The user is not the same as the connection user and is not part of the
         shell configured admin users
-        '''
+        """
         # if we don't use become then we know we aren't switching to a
         # different unprivileged user
         if not self._connection.become:
@@ -454,9 +454,9 @@ class ActionBase(ABC):
         return bool(become_user and become_user not in admin_users + [remote_user])
 
     def _make_tmp_path(self, remote_user=None):
-        '''
+        """
         Create and return a temporary path on a remote box.
-        '''
+        """
 
         # Network connection plugins (network_cli, netconf, etc.) execute on the controller, rather than the remote host.
         # As such, we want to avoid using remote_user for paths  as remote_user may not line up with the local user
@@ -517,11 +517,11 @@ class ActionBase(ABC):
         return rc
 
     def _should_remove_tmp_path(self, tmp_path):
-        '''Determine if temporary path should be deleted or kept by user request/config'''
+        """Determine if temporary path should be deleted or kept by user request/config"""
         return tmp_path and self._cleanup_remote_tmp and not C.DEFAULT_KEEP_REMOTE_FILES and "-tmp-" in tmp_path
 
     def _remove_tmp_path(self, tmp_path, force=False):
-        '''Remove a temporary path we created. '''
+        """Remove a temporary path we created. """
 
         if tmp_path is None and self._connection._shell.tmpdir:
             tmp_path = self._connection._shell.tmpdir
@@ -557,9 +557,9 @@ class ActionBase(ABC):
         return remote_path
 
     def _transfer_data(self, remote_path, data):
-        '''
+        """
         Copies the module data out to the temporary module path.
-        '''
+        """
 
         if isinstance(data, dict):
             data = jsonify(data)
@@ -802,41 +802,41 @@ class ActionBase(ABC):
                 to_native(res['stderr']), become_link))
 
     def _remote_chmod(self, paths, mode, sudoable=False):
-        '''
+        """
         Issue a remote chmod command
-        '''
+        """
         cmd = self._connection._shell.chmod(paths, mode)
         res = self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
     def _remote_chown(self, paths, user, sudoable=False):
-        '''
+        """
         Issue a remote chown command
-        '''
+        """
         cmd = self._connection._shell.chown(paths, user)
         res = self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
     def _remote_chgrp(self, paths, group, sudoable=False):
-        '''
+        """
         Issue a remote chgrp command
-        '''
+        """
         cmd = self._connection._shell.chgrp(paths, group)
         res = self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
     def _remote_set_user_facl(self, paths, user, mode, sudoable=False):
-        '''
+        """
         Issue a remote call to setfacl
-        '''
+        """
         cmd = self._connection._shell.set_user_facl(paths, user, mode)
         res = self._low_level_execute_command(cmd, sudoable=sudoable)
         return res
 
     def _execute_remote_stat(self, path, all_vars, follow, tmp=None, checksum=True):
-        '''
+        """
         Get information from remote file.
-        '''
+        """
         if tmp is not None:
             display.warning('_execute_remote_stat no longer honors the tmp parameter. Action'
                             ' plugins should set self._connection._shell.tmpdir to share'
@@ -876,7 +876,7 @@ class ActionBase(ABC):
         return mystat['stat']
 
     def _remote_expand_user(self, path, sudoable=True, pathsep=None):
-        ''' takes a remote path and performs tilde/$HOME expansion on the remote host '''
+        """ takes a remote path and performs tilde/$HOME expansion on the remote host """
 
         # We only expand ~/path and ~username/path
         if not path.startswith('~'):
@@ -930,9 +930,9 @@ class ActionBase(ABC):
         return expanded
 
     def _strip_success_message(self, data):
-        '''
+        """
         Removes the BECOME-SUCCESS message from the data.
-        '''
+        """
         if data.strip().startswith('BECOME-SUCCESS-'):
             data = re.sub(r'^((\r)?\n)?BECOME-SUCCESS.*(\r)?\n', '', data)
         return data
@@ -972,9 +972,6 @@ class ActionBase(ABC):
         # let module know about filesystems that selinux treats specially
         module_args['_ansible_selinux_special_fs'] = C.DEFAULT_SELINUX_SPECIAL_FS
 
-        # what to do when parameter values are converted to strings
-        module_args['_ansible_string_conversion_action'] = C.STRING_CONVERSION_ACTION
-
         # give the module the socket for persistent connections
         module_args['_ansible_socket'] = getattr(self._connection, 'socket_path')
         if not module_args['_ansible_socket']:
@@ -1003,9 +1000,9 @@ class ActionBase(ABC):
 
     def _execute_module(self, module_name=None, module_args=None, tmp=None, task_vars=None, persist_files=False, delete_remote_tmp=None, wrap_async=False,
                         ignore_unknown_opts: bool = False):
-        '''
+        """
         Transfer and run a module along with its arguments.
-        '''
+        """
         if tmp is not None:
             display.warning('_execute_module no longer honors the tmp parameter. Action plugins'
                             ' should set self._connection._shell.tmpdir to share the tmpdir')
@@ -1114,7 +1111,7 @@ class ActionBase(ABC):
             remote_files.append(remote_async_module_path)
 
             async_limit = self._task.async_val
-            async_jid = f'j{random.randint(0, 999999999999)}'
+            async_jid = f'j{secrets.randbelow(999999999999)}'
 
             # call the interpreter for async_wrapper directly
             # this permits use of a script for an interpreter on non-Linux platforms
@@ -1266,7 +1263,7 @@ class ActionBase(ABC):
 
     # FIXME: move to connection base
     def _low_level_execute_command(self, cmd, sudoable=True, in_data=None, executable=None, encoding_errors='surrogate_then_replace', chdir=None):
-        '''
+        """
         This is the function which executes the low level shell command, which
         may be commands to create/remove directories for temporary files, or to
         run the module code or python directly when pipelining.
@@ -1279,7 +1276,7 @@ class ActionBase(ABC):
             verbatim, then this won't work.  May have to use some sort of
             replacement strategy (python3 could use surrogateescape)
         :kwarg chdir: cd into this directory before executing the command.
-        '''
+        """
 
         display.debug("_low_level_execute_command(): starting")
         # if not cmd:
@@ -1375,7 +1372,7 @@ class ActionBase(ABC):
             elif peek_result.get('size') and C.MAX_FILE_SIZE_FOR_DIFF > 0 and peek_result['size'] > C.MAX_FILE_SIZE_FOR_DIFF:
                 diff['dst_larger'] = C.MAX_FILE_SIZE_FOR_DIFF
             else:
-                display.debug(u"Slurping the file %s" % source)
+                display.debug(u"Slurping the file %s" % destination)
                 dest_result = self._execute_module(
                     module_name='ansible.legacy.slurp', module_args=dict(path=destination),
                     task_vars=task_vars, persist_files=True)
@@ -1422,11 +1419,11 @@ class ActionBase(ABC):
         return diff
 
     def _find_needle(self, dirname, needle):
-        '''
+        """
             find a needle in haystack of paths, optionally using 'dirname' as a subdir.
             This will build the ordered list of paths to search and pass them to dwim
             to get back the first existing file found.
-        '''
+        """
 
         # dwim already deals with playbook basedirs
         path_stack = self._task.get_search_path()

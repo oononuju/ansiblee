@@ -12,7 +12,7 @@ from ansible.cli import CLI
 import datetime
 import os
 import platform
-import random
+import secrets
 import shlex
 import shutil
 import socket
@@ -33,7 +33,7 @@ display = Display()
 
 
 class PullCLI(CLI):
-    ''' Used to pull a remote copy of ansible on each managed node,
+    """ Used to pull a remote copy of ansible on each managed node,
         each set to run via cron and update playbook source via a source repository.
         This inverts the default *push* architecture of ansible into a *pull* architecture,
         which has near-limitless scaling potential.
@@ -45,7 +45,7 @@ class PullCLI(CLI):
         This is useful both for extreme scale-out as well as periodic remediation.
         Usage of the 'fetch' module to retrieve logs from ansible-pull runs would be an
         excellent way to gather and analyze remote logs from ansible-pull.
-    '''
+    """
 
     name = 'ansible-pull'
 
@@ -76,7 +76,7 @@ class PullCLI(CLI):
         return inv_opts
 
     def init_parser(self):
-        ''' create an options parser for bin/ansible '''
+        """ create an options parser for bin/ansible """
 
         super(PullCLI, self).init_parser(
             usage='%prog -U <repository> [options] [<playbook.yml>]',
@@ -140,7 +140,7 @@ class PullCLI(CLI):
 
         if options.sleep:
             try:
-                secs = random.randint(0, int(options.sleep))
+                secs = secrets.randbelow(int(options.sleep))
                 options.sleep = secs
             except ValueError:
                 raise AnsibleOptionsError("%s is not a number." % options.sleep)
@@ -157,7 +157,7 @@ class PullCLI(CLI):
         return options
 
     def run(self):
-        ''' use Runner lib to do SSH things '''
+        """ use Runner lib to do SSH things """
 
         super(PullCLI, self).run()
 
@@ -297,6 +297,9 @@ class PullCLI(CLI):
             cmd += ' -C'
         if context.CLIARGS['diff']:
             cmd += ' -D'
+
+        if context.CLIARGS['flush_cache']:
+            cmd += ' --flush-cache'
 
         os.chdir(context.CLIARGS['dest'])
 

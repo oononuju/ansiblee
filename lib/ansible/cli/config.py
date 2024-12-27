@@ -22,7 +22,7 @@ import ansible.plugins.loader as plugin_loader
 from ansible import constants as C
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.config.manager import ConfigManager, Setting
-from ansible.errors import AnsibleError, AnsibleOptionsError
+from ansible.errors import AnsibleError, AnsibleOptionsError, AnsibleRequiredOptionError
 from ansible.module_utils.common.text.converters import to_native, to_text, to_bytes
 from ansible.module_utils.common.json import json_dump
 from ansible.module_utils.six import string_types
@@ -35,6 +35,9 @@ from ansible.utils.path import unfrackpath
 display = Display()
 
 
+_IGNORE_CHANGED = frozenset({'_terms', '_input'})
+
+
 def yaml_dump(data, default_flow_style=False, default_style=None):
     return yaml.dump(data, Dumper=AnsibleDumper, default_flow_style=default_flow_style, default_style=default_style)
 
@@ -44,14 +47,14 @@ def yaml_short(data):
 
 
 def get_constants():
-    ''' helper method to ensure we can template based on existing constants '''
+    """ helper method to ensure we can template based on existing constants """
     if not hasattr(get_constants, 'cvars'):
         get_constants.cvars = {k: getattr(C, k) for k in dir(C) if not k.startswith('__')}
     return get_constants.cvars
 
 
 def _ansible_env_vars(varname):
-    ''' return true or false depending if variable name is possibly a 'configurable' ansible env variable '''
+    """ return true or false depending if variable name is possibly a 'configurable' ansible env variable """
     return all(
         [
             varname.startswith("ANSIBLE_"),
@@ -149,6 +152,10 @@ class ConfigCLI(CLI):
 
         super(ConfigCLI, self).run()
 
+        # initialize each galaxy server's options from known listed servers
+        self._galaxy_servers = [s for s in C.GALAXY_SERVER_LIST or [] if s]  # clean list, reused later here
+        C.config.load_galaxy_server_defs(self._galaxy_servers)
+
         if context.CLIARGS['config_file']:
             self.config_file = unfrackpath(context.CLIARGS['config_file'], follow=False)
             b_config = to_bytes(self.config_file)
@@ -181,9 +188,9 @@ class ConfigCLI(CLI):
         context.CLIARGS['func']()
 
     def execute_update(self):
-        '''
+        """
         Updates a single setting in the specified ansible.cfg
-        '''
+        """
         raise AnsibleError("Option not implemented yet")
 
         # pylint: disable=unreachable
@@ -205,9 +212,9 @@ class ConfigCLI(CLI):
         ])
 
     def execute_view(self):
-        '''
+        """
         Displays the current config file
-        '''
+        """
         try:
             with open(self.config_file, 'rb') as f:
                 self.pager(to_text(f.read(), errors='surrogate_or_strict'))
@@ -215,9 +222,9 @@ class ConfigCLI(CLI):
             raise AnsibleError("Failed to open config file: %s" % to_native(e))
 
     def execute_edit(self):
-        '''
+        """
         Opens ansible.cfg in the default EDITOR
-        '''
+        """
         raise AnsibleError("Option not implemented yet")
 
         # pylint: disable=unreachable
@@ -259,13 +266,19 @@ class ConfigCLI(CLI):
         return entries
 
     def _list_entries_from_args(self):
-        '''
+        """
         build a dict with the list requested configs
-        '''
+        """
+
         config_entries = {}
         if context.CLIARGS['type'] in ('base', 'all'):
             # this dumps main/common configs
             config_entries = self.config.get_configuration_definitions(ignore_private=True)
+
+            # for base and all, we include galaxy servers
+            config_entries['GALAXY_SERVERS'] = {}
+            for server in self._galaxy_servers:
+                config_entries['GALAXY_SERVERS'][server] = self.config.get_configuration_definitions('galaxy_server', server)
 
         if context.CLIARGS['type'] != 'base':
             config_entries['PLUGINS'] = {}
@@ -281,9 +294,9 @@ class ConfigCLI(CLI):
         return config_entries
 
     def execute_list(self):
-        '''
+        """
         list and output available configs
-        '''
+        """
 
         config_entries = self._list_entries_from_args()
         if context.CLIARGS['format'] == 'yaml':
@@ -445,13 +458,13 @@ class ConfigCLI(CLI):
 
         entries = []
         for setting in sorted(config):
-            changed = (config[setting].origin not in ('default', 'REQUIRED'))
+            changed = (config[setting].origin not in ('default', 'REQUIRED') and setting not in _IGNORE_CHANGED)
 
             if context.CLIARGS['format'] == 'display':
                 if isinstance(config[setting], Setting):
                     # proceed normally
                     value = config[setting].value
-                    if config[setting].origin == 'default':
+                    if config[setting].origin == 'default' or setting in _IGNORE_CHANGED:
                         color = 'green'
                         value = self.config.template_default(value, get_constants())
                     elif config[setting].origin == 'REQUIRED':
@@ -468,6 +481,8 @@ class ConfigCLI(CLI):
             else:
                 entry = {}
                 for key in config[setting]._fields:
+                    if key == 'type':
+                        continue
                     entry[key] = getattr(config[setting], key)
 
             if not context.CLIARGS['only_changed'] or changed:
@@ -476,7 +491,10 @@ class ConfigCLI(CLI):
         return entries
 
     def _get_global_configs(self):
-        config = self.config.get_configuration_definitions(ignore_private=True).copy()
+
+        # Add base
+        config = self.config.get_configuration_definitions(ignore_private=True)
+        # convert to settings
         for setting in config.keys():
             v, o = C.config.get_config_value_and_origin(setting, cfile=self.config_file, variables=get_constants())
             config[setting] = Setting(setting, v, o, None)
@@ -488,7 +506,7 @@ class ConfigCLI(CLI):
         # prep loading
         loader = getattr(plugin_loader, '%s_loader' % ptype)
 
-        # acumulators
+        # accumulators
         output = []
         config_entries = {}
 
@@ -505,7 +523,7 @@ class ConfigCLI(CLI):
             plugin_cs = loader.all(class_only=True)
 
         for plugin in plugin_cs:
-            # in case of deprecastion they diverge
+            # in case of deprecation they diverge
             finalname = name = plugin._load_name
             if name.startswith('_'):
                 if os.path.islink(plugin._original_path):
@@ -528,12 +546,9 @@ class ConfigCLI(CLI):
             for setting in config_entries[finalname].keys():
                 try:
                     v, o = C.config.get_config_value_and_origin(setting, cfile=self.config_file, plugin_type=ptype, plugin_name=name, variables=get_constants())
-                except AnsibleError as e:
-                    if to_text(e).startswith('No setting was provided for required configuration'):
-                        v = None
-                        o = 'REQUIRED'
-                    else:
-                        raise e
+                except AnsibleRequiredOptionError:
+                    v = None
+                    o = 'REQUIRED'
 
                 if v is None and o is None:
                     # not all cases will be error
@@ -553,17 +568,60 @@ class ConfigCLI(CLI):
 
         return output
 
+    def _get_galaxy_server_configs(self):
+
+        output = []
+        # add galaxy servers
+        for server in self._galaxy_servers:
+            server_config = {}
+            s_config = self.config.get_configuration_definitions('galaxy_server', server)
+            for setting in s_config.keys():
+                try:
+                    v, o = C.config.get_config_value_and_origin(setting, plugin_type='galaxy_server', plugin_name=server, cfile=self.config_file)
+                except AnsibleError as e:
+                    if s_config[setting].get('required', False):
+                        v = None
+                        o = 'REQUIRED'
+                    else:
+                        raise e
+                if v is None and o is None:
+                    # not all cases will be error
+                    o = 'REQUIRED'
+                server_config[setting] = Setting(setting, v, o, None)
+            if context.CLIARGS['format'] == 'display':
+                if not context.CLIARGS['only_changed'] or server_config:
+                    equals = '=' * len(server)
+                    output.append(f'\n{server}\n{equals}')
+                    output.extend(self._render_settings(server_config))
+            else:
+                output.append({server: server_config})
+
+        return output
+
     def execute_dump(self):
-        '''
+        """
         Shows the current settings, merges ansible.cfg if specified
-        '''
-        if context.CLIARGS['type'] == 'base':
+        """
+        output = []
+        if context.CLIARGS['type'] in ('base', 'all'):
             # deal with base
             output = self._get_global_configs()
-        elif context.CLIARGS['type'] == 'all':
-            # deal with base
-            output = self._get_global_configs()
-            # deal with plugins
+
+            # add galaxy servers
+            server_config_list = self._get_galaxy_server_configs()
+            if context.CLIARGS['format'] == 'display':
+                output.append('\nGALAXY_SERVERS:\n')
+                output.extend(server_config_list)
+            else:
+                configs = {}
+                for server_config in server_config_list:
+                    server = list(server_config.keys())[0]
+                    server_reduced_config = server_config.pop(server)
+                    configs[server] = server_reduced_config
+                output.append({'GALAXY_SERVERS': configs})
+
+        if context.CLIARGS['type'] == 'all':
+            # add all plugins
             for ptype in C.CONFIGURABLE_PLUGINS:
                 plugin_list = self._get_plugin_configs(ptype, context.CLIARGS['args'])
                 if context.CLIARGS['format'] == 'display':
@@ -576,8 +634,9 @@ class ConfigCLI(CLI):
                     else:
                         pname = '%s_PLUGINS' % ptype.upper()
                     output.append({pname: plugin_list})
-        else:
-            # deal with plugins
+
+        elif context.CLIARGS['type'] != 'base':
+            # deal with specific plugin
             output = self._get_plugin_configs(context.CLIARGS['type'], context.CLIARGS['args'])
 
         if context.CLIARGS['format'] == 'display':
@@ -594,6 +653,7 @@ class ConfigCLI(CLI):
         found = False
         config_entries = self._list_entries_from_args()
         plugin_types = config_entries.pop('PLUGINS', None)
+        galaxy_servers = config_entries.pop('GALAXY_SERVERS', None)
 
         if context.CLIARGS['format'] == 'ini':
             if C.CONFIG_FILE is not None:
@@ -610,6 +670,14 @@ class ConfigCLI(CLI):
                                     sections[s].update(plugin_sections[s])
                                 else:
                                     sections[s] = plugin_sections[s]
+                if galaxy_servers:
+                    for server in galaxy_servers:
+                        server_sections = _get_ini_entries(galaxy_servers[server])
+                        for s in server_sections:
+                            if s in sections:
+                                sections[s].update(server_sections[s])
+                            else:
+                                sections[s] = server_sections[s]
                 if sections:
                     p = C.config._parsers[C.CONFIG_FILE]
                     for s in p.sections():

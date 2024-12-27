@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
     inventory: yaml
     version_added: "2.4"
     short_description: Uses a specific YAML file as an inventory source.
@@ -30,8 +30,8 @@ DOCUMENTATION = '''
           - section: inventory_plugin_yaml
             key: yaml_valid_extensions
 
-'''
-EXAMPLES = '''
+"""
+EXAMPLES = """
 all: # keys must be unique, i.e. only one 'hosts' per group
     hosts:
         test1:
@@ -55,7 +55,7 @@ all: # keys must be unique, i.e. only one 'hosts' per group
                 test1 # same host as above, additional group membership
             vars:
                 group_last_var: value
-'''
+"""
 
 import os
 
@@ -87,7 +87,7 @@ class InventoryModule(BaseFileInventoryPlugin):
         return valid
 
     def parse(self, inventory, loader, path, cache=True):
-        ''' parses the inventory file '''
+        """ parses the inventory file """
 
         super(InventoryModule, self).parse(inventory, loader, path)
         self.set_options()
@@ -105,7 +105,7 @@ class InventoryModule(BaseFileInventoryPlugin):
             raise AnsibleParserError('Plugin configuration YAML file, not YAML inventory')
 
         # We expect top level keys to correspond to groups, iterate over them
-        # to get host, vars and subgroups (which we iterate over recursivelly)
+        # to get host, vars and subgroups (which we iterate over recursively)
         if isinstance(data, MutableMapping):
             for group_name in data:
                 self._parse_group(group_name, data[group_name])
@@ -160,9 +160,9 @@ class InventoryModule(BaseFileInventoryPlugin):
             self.display.warning("Skipping '%s' as this is not a valid group definition" % group)
 
     def _parse_host(self, host_pattern):
-        '''
+        """
         Each host key can be a pattern, try to process it and add variables as needed
-        '''
+        """
         (hostnames, port) = self._expand_hostpattern(host_pattern)
 
         return hostnames, port

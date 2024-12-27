@@ -26,13 +26,13 @@ install_ssh_keys()
         echo "${ssh_private_key}" > "${ssh_private_key_path}"
 
         # add public key to authorized_keys
-        authoried_keys_path="${HOME}/.ssh/authorized_keys"
+        authorized_keys_path="${HOME}/.ssh/authorized_keys"
 
         # the existing file is overwritten to avoid conflicts (ex: RHEL on EC2 blocks root login)
-        cat "${public_key_path}" > "${authoried_keys_path}"
-        chmod 0600 "${authoried_keys_path}"
+        cat "${public_key_path}" > "${authorized_keys_path}"
+        chmod 0600 "${authorized_keys_path}"
 
-        # add localhost's server keys to known_hosts
+        # add localhost server keys to known_hosts
         known_hosts_path="${HOME}/.ssh/known_hosts"
 
         for key in /etc/ssh/ssh_host_*_key.pub; do
@@ -53,14 +53,14 @@ customize_bashrc()
     fi
 
     # Improve shell prompts for interactive use.
-    echo "export PS1='\[\e]0;\u@\h: \w\a\]\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '" >> ~/.bashrc
+    echo "export PS1='"'\[\e]0;\u@\h: \w\a\]\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '"'" >> ~/.bashrc
 }
 
 install_pip() {
     if ! "${python_interpreter}" -m pip.__main__ --version --disable-pip-version-check 2>/dev/null; then
         case "${python_version}" in
             *)
-                pip_bootstrap_url="https://ci-files.testing.ansible.com/ansible-test/get-pip-23.1.2.py"
+                pip_bootstrap_url="https://ci-files.testing.ansible.com/ansible-test/get-pip-24.0.py"
                 ;;
         esac
 
@@ -168,18 +168,10 @@ bootstrap_remote_freebsd()
         # Declare platform/python version combinations which do not have supporting OS packages available.
         # For these combinations ansible-test will use pip to install the requirements instead.
         case "${platform_version}/${python_version}" in
-            13.3/3.9)
-                # defaults above 'just work'TM
+            13.4/3.11)
+                # defaults available
                 ;;
-            13.3/3.11)
-                jinja2_pkg=""  # not available
-                cryptography_pkg=""  # not available
-                pyyaml_pkg=""  # not available
-                ;;
-            14.0/3.9)
-                # defaults above 'just work'TM
-                ;;
-            14.0/3.11)
+            14.1/3.11)
                 cryptography_pkg=""  # not available
                 jinja2_pkg=""  # not available
                 pyyaml_pkg=""  # not available
@@ -268,19 +260,12 @@ bootstrap_remote_rhel_9()
     packages="
         gcc
         ${py_pkg_prefix}-devel
+        ${py_pkg_prefix}-pip
         "
-
-    # pip is not included in the Python devel package under Python 3.11
-    if [ "${python_version}" != "3.9" ]; then
-        packages="
-            ${packages}
-            ${py_pkg_prefix}-pip
-        "
-    fi
 
     # Jinja2 is not installed with an OS package since the provided version is too old.
     # Instead, ansible-test will install it using pip.
-    # packaging and resolvelib are missing for Python 3.11 (and possible later) so we just
+    # packaging and resolvelib are missing for controller supported Python versions, so we just
     # skip them and let ansible-test install them from PyPI.
     if [ "${controller}" ]; then
         packages="
@@ -329,10 +314,6 @@ bootstrap_remote_ubuntu()
         # For these ansible-test will use pip to install the requirements instead.
         # Only the platform is checked since Ubuntu shares Python packages across Python versions.
         case "${platform_version}" in
-            "20.04")
-                jinja2_pkg=""  # too old
-                resolvelib_pkg=""  # not available
-                ;;
         esac
 
         packages="

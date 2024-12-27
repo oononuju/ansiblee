@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
 ---
 module: apt
 short_description: Manages apt-packages
@@ -17,6 +17,12 @@ description:
   - Manages I(apt) packages (such as for Debian/Ubuntu).
 version_added: "0.0.2"
 options:
+  auto_install_module_deps:
+    description:
+      - Automatically install dependencies required to run this module.
+    type: bool
+    default: yes
+    version_added: 2.19
   name:
     description:
       - A list of package names, like V(foo), or package specifier with version, like V(foo=1.0) or V(foo>=1.0).
@@ -63,21 +69,20 @@ options:
     default: 'no'
   default_release:
     description:
-      - Corresponds to the C(-t) option for I(apt) and sets pin priorities
+      - Corresponds to the C(-t) option for I(apt) and sets pin priorities.
     aliases: [ default-release ]
     type: str
   install_recommends:
     description:
-      - Corresponds to the C(--no-install-recommends) option for I(apt). V(true) installs recommended packages.  V(false) does not install
+      - Corresponds to the C(--no-install-recommends) option for C(apt). V(true) installs recommended packages. V(false) does not install
         recommended packages. By default, Ansible will use the same defaults as the operating system. Suggested packages are never installed.
     aliases: [ install-recommends ]
     type: bool
   force:
     description:
-      - 'Corresponds to the C(--force-yes) to I(apt-get) and implies O(allow_unauthenticated=yes) and O(allow_downgrade=yes)'
-      - "This option will disable checking both the packages' signatures and the certificates of the
-        web servers they are downloaded from."
-      - 'This option *is not* the equivalent of passing the C(-f) flag to I(apt-get) on the command line'
+      - 'Corresponds to the C(--force-yes) to C(apt-get) and implies O(allow_unauthenticated=yes) and O(allow_downgrade=yes).'
+      - "This option will disable checking both the packages' signatures and the certificates of the web servers they are downloaded from."
+      - 'This option *is not* the equivalent of passing the C(-f) flag to C(apt-get) on the command line.'
       - '**This is a destructive operation with the potential to destroy your system, and it should almost never be used.**
          Please also see C(man apt-get) for more information.'
     type: bool
@@ -85,7 +90,7 @@ options:
   clean:
     description:
       - Run the equivalent of C(apt-get clean) to clear out the local repository of retrieved package files. It removes everything but
-        the lock file from /var/cache/apt/archives/ and /var/cache/apt/archives/partial/.
+        the lock file from C(/var/cache/apt/archives/) and C(/var/cache/apt/archives/partial/).
       - Can be run as part of the package installation (clean runs before install) or as a separate step.
     type: bool
     default: 'no'
@@ -93,7 +98,7 @@ options:
   allow_unauthenticated:
     description:
       - Ignore if packages cannot be authenticated. This is useful for bootstrapping environments that manage their own apt-key setup.
-      - 'O(allow_unauthenticated) is only supported with O(state): V(install)/V(present)'
+      - 'O(allow_unauthenticated) is only supported with O(state): V(install)/V(present).'
     aliases: [ allow-unauthenticated ]
     type: bool
     default: 'no'
@@ -111,7 +116,7 @@ options:
     version_added: "2.12"
   allow_change_held_packages:
     description:
-      - Allows changing the version of a package which is on the apt hold list
+      - Allows changing the version of a package which is on the apt hold list.
     type: bool
     default: 'no'
     version_added: '2.13'
@@ -128,14 +133,14 @@ options:
     type: str
   dpkg_options:
     description:
-      - Add dpkg options to apt command. Defaults to '-o "Dpkg::Options::=--force-confdef" -o "Dpkg::Options::=--force-confold"'
-      - Options should be supplied as comma separated list
+      - Add C(dpkg) options to C(apt) command. Defaults to C(-o "Dpkg::Options::=--force-confdef" -o "Dpkg::Options::=--force-confold").
+      - Options should be supplied as comma separated list.
     default: force-confdef,force-confold
     type: str
   deb:
      description:
        - Path to a .deb package on the remote machine.
-       - If :// in the path, ansible will attempt to download deb before installing. (Version added 2.1)
+       - If C(://) in the path, ansible will attempt to download deb before installing. (Version added 2.1)
        - Requires the C(xz-utils) package to extract the control file of the deb package to install.
      type: path
      required: false
@@ -143,7 +148,8 @@ options:
   autoremove:
     description:
       - If V(true), remove unused dependency packages for all module states except V(build-dep). It can also be used as the only option.
-      - Previous to version 2.4, autoclean was also an alias for autoremove, now it is its own separate command. See documentation for further information.
+      - Previous to version 2.4, O(autoclean) was also an alias for O(autoremove), now it is its own separate command.
+        See documentation for further information.
     type: bool
     default: 'no'
     version_added: "2.1"
@@ -155,10 +161,10 @@ options:
     version_added: "2.4"
   policy_rc_d:
     description:
-      - Force the exit code of /usr/sbin/policy-rc.d.
-      - For example, if I(policy_rc_d=101) the installed package will not trigger a service start.
-      - If /usr/sbin/policy-rc.d already exists, it is backed up and restored after the package installation.
-      - If V(null), the /usr/sbin/policy-rc.d isn't created/changed.
+      - Force the exit code of C(/usr/sbin/policy-rc.d).
+      - For example, if O(policy_rc_d=101) the installed package will not trigger a service start.
+      - If C(/usr/sbin/policy-rc.d) already exists, it is backed up and restored after the package installation.
+      - If V(null), the C(/usr/sbin/policy-rc.d) is not created/changed.
     type: int
     default: null
     version_added: "2.8"
@@ -179,7 +185,7 @@ options:
     version_added: "2.11"
   force_apt_get:
     description:
-      - Force usage of apt-get instead of aptitude
+      - Force usage of apt-get instead of aptitude.
     type: bool
     default: 'no'
     version_added: "2.4"
@@ -191,8 +197,7 @@ options:
     default: 60
     version_added: "2.12"
 requirements:
-   - python-apt (python 2)
-   - python3-apt (python 3)
+   - python3-apt
    - aptitude (before 2.4)
 author: "Matthew Williams (@mgwilliams)"
 extends_documentation_fragment: action_common_attributes
@@ -205,22 +210,22 @@ attributes:
         platforms: debian
 notes:
    - Three of the upgrade modes (V(full), V(safe) and its alias V(true)) required C(aptitude) up to 2.3, since 2.4 C(apt-get) is used as a fall-back.
-   - In most cases, packages installed with apt will start newly installed services by default. Most distributions have mechanisms to avoid this.
+   - In most cases, packages installed with I(apt) will start newly installed services by default. Most distributions have mechanisms to avoid this.
      For example when installing Postgresql-9.5 in Debian 9, creating an executable shell script (/usr/sbin/policy-rc.d) that throws
-     a return code of 101 will stop Postgresql 9.5 starting up after install. Remove the file or  its execute permission afterward.
-   - The apt-get commandline supports implicit regex matches here but we do not because it can let typos through easier
+     a return code of 101 will stop Postgresql 9.5 starting up after install. Remove the file or its execute permission afterward.
+   - The C(apt-get) commandline supports implicit regex matches here but we do not because it can let typos through easier
      (If you typo C(foo) as C(fo) apt-get would install packages that have "fo" in their name with a warning and a prompt for the user.
-     Since we don't have warnings and prompts before installing, we disallow this.Use an explicit fnmatch pattern if you want wildcarding)
+     Since there are no warnings and prompts before installing, we disallow this. Use an explicit fnmatch pattern if you want wildcarding).
    - When used with a C(loop:) each package will be processed individually, it is much more efficient to pass the list directly to the O(name) option.
    - When O(default_release) is used, an implicit priority of 990 is used. This is the same behavior as C(apt-get -t).
    - When an exact version is specified, an implicit priority of 1001 is used.
-   - If the interpreter can't import ``python-apt``/``python3-apt`` the module will check for it in system-owned interpreters as well.
-     If the dependency can't be found, the module will attempt to install it.
+   - If the interpreter can't import C(python3-apt) the module will check for it in system-owned interpreters as well.
+     If the dependency can't be found, depending on the value of O(auto_install_module_deps) the module will attempt to install it.
      If the dependency is found or installed, the module will be respawned under the correct interpreter.
-'''
+"""
 
-EXAMPLES = '''
-- name: Install apache httpd  (state=present is optional)
+EXAMPLES = """
+- name: Install apache httpd (state=present is optional)
   ansible.builtin.apt:
     name: apache2
     state: present
@@ -327,9 +332,9 @@ EXAMPLES = '''
 - name: Run the equivalent of "apt-get clean" as a separate step
   ansible.builtin.apt:
     clean: yes
-'''
+"""
 
-RETURN = '''
+RETURN = """
 cache_updated:
     description: if the cache was updated or not
     returned: success, in some cases
@@ -355,7 +360,7 @@ stderr:
     returned: success, when needed
     type: str
     sample: "AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 127.0.1.1. Set the 'ServerName' directive globally to ..."
-'''  # NOQA
+"""  # NOQA
 
 # added to stave off future warnings about apt api
 import warnings
@@ -365,8 +370,8 @@ import datetime
 import fnmatch
 import locale as locale_module
 import os
-import random
 import re
+import secrets
 import shutil
 import sys
 import tempfile
@@ -381,8 +386,8 @@ from ansible.module_utils.six import string_types
 from ansible.module_utils.urls import fetch_file
 
 DPKG_OPTIONS = 'force-confdef,force-confold'
-APT_GET_ZERO = "\n0 upgraded, 0 newly installed"
-APTITUDE_ZERO = "\n0 packages upgraded, 0 newly installed"
+APT_GET_ZERO = "\n0 upgraded, 0 newly installed, 0 to remove"
+APTITUDE_ZERO = "\n0 packages upgraded, 0 newly installed, 0 to remove"
 APT_LISTS_PATH = "/var/lib/apt/lists"
 APT_UPDATE_SUCCESS_STAMP_PATH = "/var/lib/apt/periodic/update-success-stamp"
 APT_MARK_INVALID_OP = 'Invalid operation'
@@ -507,7 +512,7 @@ def package_best_match(pkgname, version_cmp, version, release, cache):
         policy.create_pin('Release', pkgname, release, 990)
     if version_cmp == "=":
         # Installing a specific version from command line overrides all pinning
-        # We don't mimmic this exactly, but instead set a priority which is higher than all APT built-in pin priorities.
+        # We don't mimic this exactly, but instead set a priority which is higher than all APT built-in pin priorities.
         policy.create_pin('Version', pkgname, version, 1001)
     pkg = cache[pkgname]
     pkgver = policy.get_candidate_ver(pkg)
@@ -1184,7 +1189,7 @@ def get_updated_cache_time():
 
 # https://github.com/ansible/ansible-modules-core/issues/2951
 def get_cache(module):
-    '''Attempt to get the cache object and update till it works'''
+    """Attempt to get the cache object and update till it works"""
     cache = None
     try:
         cache = apt.Cache()
@@ -1233,6 +1238,7 @@ def main():
             allow_downgrade=dict(type='bool', default=False, aliases=['allow-downgrade', 'allow_downgrades', 'allow-downgrades']),
             allow_change_held_packages=dict(type='bool', default=False),
             lock_timeout=dict(type='int', default=60),
+            auto_install_module_deps=dict(type='bool', default=True),
         ),
         mutually_exclusive=[['deb', 'package', 'upgrade']],
         required_one_of=[['autoremove', 'deb', 'package', 'update_cache', 'upgrade']],
@@ -1252,6 +1258,7 @@ def main():
         LC_ALL=locale,
         LC_MESSAGES=locale,
         LC_CTYPE=locale,
+        LANGUAGE=locale,
     )
     module.run_command_environ_update = APT_ENV_VARS
 
@@ -1267,7 +1274,7 @@ def main():
     if not HAS_PYTHON_APT:
         # This interpreter can't see the apt Python library- we'll do the following to try and fix that:
         # 1) look in common locations for system-owned interpreters that can see it; if we find one, respawn under it
-        # 2) finding none, try to install a matching python-apt package for the current interpreter version;
+        # 2) finding none, try to install a matching python3-apt package for the current interpreter version;
         #    we limit to the current interpreter version to try and avoid installing a whole other Python just
         #    for apt support
         # 3) if we installed a support package, try to respawn under what we think is the right interpreter (could be
@@ -1293,39 +1300,47 @@ def main():
 
         # don't make changes if we're in check_mode
         if module.check_mode:
-            module.fail_json(msg="%s must be installed to use check mode. "
-                                 "If run normally this module can auto-install it." % apt_pkg_name)
+            module.fail_json(
+                msg=f"{apt_pkg_name} must be installed to use check mode. "
+                    "If run normally this module can auto-install it, "
+                    "see the auto_install_module_deps option.",
+            )
+        elif p['auto_install_module_deps']:
+            # We skip cache update in auto install the dependency if the
+            # user explicitly declared it with update_cache=no.
+            if module.params.get('update_cache') is False:
+                module.warn("Auto-installing missing dependency without updating cache: %s" % apt_pkg_name)
+            else:
+                module.warn("Updating cache and auto-installing missing dependency: %s" % apt_pkg_name)
+                module.run_command([APT_GET_CMD, 'update'], check_rc=True)
 
-        # We skip cache update in auto install the dependency if the
-        # user explicitly declared it with update_cache=no.
-        if module.params.get('update_cache') is False:
-            module.warn("Auto-installing missing dependency without updating cache: %s" % apt_pkg_name)
-        else:
-            module.warn("Updating cache and auto-installing missing dependency: %s" % apt_pkg_name)
-            module.run_command([APT_GET_CMD, 'update'], check_rc=True)
+            # try to install the apt Python binding
+            apt_pkg_cmd = [APT_GET_CMD, 'install', apt_pkg_name, '-y', '-q', dpkg_options]
 
-        # try to install the apt Python binding
-        apt_pkg_cmd = [APT_GET_CMD, 'install', apt_pkg_name, '-y', '-q', dpkg_options]
+            if install_recommends is False:
+                apt_pkg_cmd.extend(["-o", "APT::Install-Recommends=no"])
+            elif install_recommends is True:
+                apt_pkg_cmd.extend(["-o", "APT::Install-Recommends=yes"])
+            # install_recommends is None uses the OS default
 
-        if install_recommends is False:
-            apt_pkg_cmd.extend(["-o", "APT::Install-Recommends=no"])
-        elif install_recommends is True:
-            apt_pkg_cmd.extend(["-o", "APT::Install-Recommends=yes"])
-        # install_recommends is None uses the OS default
+            module.run_command(apt_pkg_cmd, check_rc=True)
 
-        module.run_command(apt_pkg_cmd, check_rc=True)
+            # try again to find the bindings in common places
+            interpreter = probe_interpreters_for_module(interpreters, 'apt')
 
-        # try again to find the bindings in common places
-        interpreter = probe_interpreters_for_module(interpreters, 'apt')
+            if interpreter:
+                # found the Python bindings; respawn this module under the interpreter where we found them
+                # NB: respawn is somewhat wasteful if it's this interpreter, but simplifies the code
+                respawn_module(interpreter)
+                # this is the end of the line for this process, it will exit here once the respawned module has completed
 
-        if interpreter:
-            # found the Python bindings; respawn this module under the interpreter where we found them
-            # NB: respawn is somewhat wasteful if it's this interpreter, but simplifies the code
-            respawn_module(interpreter)
-            # this is the end of the line for this process, it will exit here once the respawned module has completed
-        else:
-            # we've done all we can do; just tell the user it's busted and get out
-            module.fail_json(msg="{0} must be installed and visible from {1}.".format(apt_pkg_name, sys.executable))
+        # we've done all we can do; just tell the user it's busted and get out
+        py_version = sys.version.replace("\n", "")
+        module.fail_json(
+            msg=f"Could not import the {apt_pkg_name} module using {sys.executable} ({py_version}). "
+            f"Ensure {apt_pkg_name} package is installed (either manually or via the auto_install_module_deps option) "
+            f"or that you have specified the correct ansible_python_interpreter. (attempted {interpreters}).",
+        )
 
     if p['clean'] is True:
         aptclean_stdout, aptclean_stderr, aptclean_diff = aptclean(module)
@@ -1387,23 +1402,32 @@ def main():
                     err = ''
                     update_cache_retries = module.params.get('update_cache_retries')
                     update_cache_retry_max_delay = module.params.get('update_cache_retry_max_delay')
-                    randomize = random.randint(0, 1000) / 1000.0
+                    randomize = secrets.randbelow(1000) / 1000.0
 
                     for retry in range(update_cache_retries):
                         try:
                             if not module.check_mode:
                                 cache.update()
                             break
-                        except apt.cache.FetchFailedException as e:
-                            err = to_native(e)
+                        except apt.cache.FetchFailedException as fetch_failed_exc:
+                            err = fetch_failed_exc
+                            module.warn(
+                                f"Failed to update cache after {retry + 1} retries due "
+                                f"to {to_native(fetch_failed_exc)}, retrying"
+                            )
 
                         # Use exponential backoff plus a little bit of randomness
                         delay = 2 ** retry + randomize
                         if delay > update_cache_retry_max_delay:
                             delay = update_cache_retry_max_delay + randomize
                         time.sleep(delay)
+                        module.warn(f"Sleeping for {int(round(delay))} seconds, before attempting to refresh the cache again")
                     else:
-                        module.fail_json(msg='Failed to update apt cache: %s' % (err if err else 'unknown reason'))
+                        msg = (
+                            f"Failed to update apt cache after {update_cache_retries} retries: "
+                            f"{err if err else 'unknown reason'}"
+                        )
+                        module.fail_json(msg=msg)
 
                     cache.open(progress=None)
                     mtimestamp, post_cache_update_time = get_updated_cache_time()

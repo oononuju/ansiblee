@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: replace
 author: Evan Kaufman (@EvanK)
@@ -93,10 +93,6 @@ options:
         get the original file back if you somehow clobbered it incorrectly.
     type: bool
     default: no
-  others:
-    description:
-      - All arguments accepted by the M(ansible.builtin.file) module also work here.
-    type: str
   encoding:
     description:
       - The character encoding for reading and writing the file.
@@ -110,9 +106,9 @@ notes:
     See U(https://github.com/ansible/ansible/issues/31354) for details.
   - Option O(ignore:follow) has been removed in Ansible 2.5, because this module modifies the contents of the file
     so O(ignore:follow=no) does not make sense.
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
 - name: Replace old hostname with new hostname (requires Ansible >= 2.4)
   ansible.builtin.replace:
     path: /etc/hosts
@@ -140,7 +136,7 @@ EXAMPLES = r'''
   ansible.builtin.replace:
     path: /etc/hosts
     after: '(?m)^<VirtualHost [*]>'
-    before: '(?m)^</VirtualHost>'
+    before: '</VirtualHost>'
     regexp: '^(.+)$'
     replace: '# \1'
 
@@ -179,9 +175,9 @@ EXAMPLES = r'''
     path: /etc/ssh/sshd_config
     regexp: '^(?P<dctv>ListenAddress[ ]+)(?P<host>[^\n]+)$'
     replace: '#\g<dctv>\g<host>\n\g<dctv>0.0.0.0'
-'''
+"""
 
-RETURN = r'''#'''
+RETURN = r"""#"""
 
 import os
 import re
@@ -195,9 +191,8 @@ from ansible.module_utils.basic import AnsibleModule
 def write_changes(module, contents, path):
 
     tmpfd, tmpfile = tempfile.mkstemp(dir=module.tmpdir)
-    f = os.fdopen(tmpfd, 'wb')
-    f.write(contents)
-    f.close()
+    with os.fdopen(tmpfd, 'wb') as f:
+        f.write(contents)
 
     validate = module.params.get('validate', None)
     valid = not validate
@@ -246,6 +241,7 @@ def main():
     path = params['path']
     encoding = params['encoding']
     res_args = dict(rc=0)
+    contents = None
 
     params['after'] = to_text(params['after'], errors='surrogate_or_strict', nonstring='passthru')
     params['before'] = to_text(params['before'], errors='surrogate_or_strict', nonstring='passthru')

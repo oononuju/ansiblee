@@ -219,3 +219,16 @@ ansible-playbook 82241.yml -i inventory.handlers "$@" 2>&1 | tee out.txt
 
 ansible-playbook handlers_lockstep_82307.yml -i inventory.handlers "$@" 2>&1 | tee out.txt
 [ "$(grep out.txt -ce 'TASK \[handler2\]')" = "0" ]
+
+ansible-playbook handlers_lockstep_83019.yml -i inventory.handlers "$@" 2>&1 | tee out.txt
+[ "$(grep out.txt -ce 'TASK \[handler1\]')" = "0" ]
+
+ansible-playbook handler_notify_earlier_handler.yml "$@" 2>&1 | tee out.txt
+[ "$(grep out.txt -ce 'h1_ran')" = "1" ]
+[ "$(grep out.txt -ce 'h2_ran')" = "1" ]
+[ "$(grep out.txt -ce 'h3_ran')" = "1" ]
+[ "$(grep out.txt -ce 'h4_ran')" = "1" ]
+
+ANSIBLE_DEBUG=1 ansible-playbook tagged_play.yml --skip-tags the_whole_play "$@" 2>&1 | tee out.txt
+[ "$(grep out.txt -ce 'META: triggered running handlers')" = "0" ]
+[ "$(grep out.txt -ce 'handler_ran')" = "0" ]

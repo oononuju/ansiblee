@@ -12,10 +12,12 @@ DOCUMENTATION = r"""
       - The csvfile lookup reads the contents of a file in CSV (comma-separated value) format.
         The lookup looks for the row where the first column matches keyname (which can be multiple words)
         and returns the value in the O(col) column (default 1, which indexed from 0 means the second column in the file).
+      - At least one keyname is required, provided as a positional argument(s) to the lookup.
     options:
       col:
         description:  column to return (0 indexed).
-        default: "1"
+        default: 1
+        type: int
       keycol:
         description:  column to search in (0 indexed).
         default: 0
@@ -75,6 +77,22 @@ EXAMPLES = """
   assert:
     that:
     - lookup('ansible.builtin.csvfile', 'Jane', file='people.csv', delimiter=',', col=0, keycol=1) == "Smith"
+
+# Contents of debug.csv
+# test1 ret1.1 ret2.1
+# test2 ret1.2 ret2.2
+# test3 ret1.3 ret2.3
+
+- name: "Lookup multiple keynames in the first column (index 0), returning the values from the second column (index 1)"
+  debug:
+    msg: "{{ lookup('csvfile', 'test1', 'test2', file='debug.csv', delimiter=' ') }}"
+
+- name: Lookup multiple keynames using old style syntax
+  debug:
+    msg: "{{ lookup('csvfile', term1, term2) }}"
+  vars:
+    term1: "test1 file=debug.csv delimiter=' '"
+    term2: "test2 file=debug.csv delimiter=' '"
 """
 
 RETURN = """
@@ -147,7 +165,7 @@ class LookupModule(LookupBase):
 
             for row in creader:
                 if len(row) and row[keycol] == key:
-                    return row[int(col)]
+                    return row[col]
         except Exception as e:
             raise AnsibleError("csvfile: %s" % to_native(e))
 
@@ -161,6 +179,9 @@ class LookupModule(LookupBase):
 
         # populate options
         paramvals = self.get_options()
+
+        if not terms:
+            raise AnsibleError('Search key is required but was not found')
 
         for term in terms:
             kv = parse_kv(term)

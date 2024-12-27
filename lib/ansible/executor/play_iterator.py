@@ -440,14 +440,38 @@ class PlayIterator:
                     else:
                         state.cur_handlers_task += 1
                         if task.is_host_notified(host):
-                            break
+                            return state, task
 
             elif state.run_state == IteratingStates.COMPLETE:
                 return (state, None)
 
             # if something above set the task, break out of the loop now
             if task:
-                break
+                # skip implicit flush_handlers if there are no handlers notified
+                if (
+                    task.implicit
+                    and task.action in C._ACTION_META
+                    and task.args.get('_raw_params', None) == 'flush_handlers'
+                    and (
+                        # the state store in the `state` variable could be a nested state,
+                        # notifications are always stored in the top level state, get it here
+                        not self.get_state_for_host(host.name).handler_notifications
+                        # in case handlers notifying other handlers, the notifications are not
+                        # saved in `handler_notifications` and handlers are notified directly
+                        # to prevent duplicate handler runs, so check whether any handler
+                        # is notified
+                        and all(not h.notified_hosts for h in self.handlers)
+                    )
+                ):
+                    display.debug("No handler notifications for %s, skipping." % host.name)
+                elif (
+                    (role := task._role)
+                    and role._metadata.allow_duplicates is False
+                    and host.name in self._play._get_cached_role(role)._completed
+                ):
+                    display.debug("'%s' skipped because role has already run" % task)
+                else:
+                    break
 
         return (state, task)
 
@@ -539,9 +563,9 @@ class PlayIterator:
             self._clear_state_errors(state.always_child_state)
 
     def get_active_state(self, state):
-        '''
+        """
         Finds the active state, recursively if necessary when there are child states.
-        '''
+        """
         if state.run_state == IteratingStates.TASKS and state.tasks_child_state is not None:
             return self.get_active_state(state.tasks_child_state)
         elif state.run_state == IteratingStates.RESCUE and state.rescue_child_state is not None:
@@ -551,10 +575,10 @@ class PlayIterator:
         return state
 
     def is_any_block_rescuing(self, state):
-        '''
+        """
         Given the current HostState state, determines if the current block, or any child blocks,
         are in rescue mode.
-        '''
+        """
         if state.run_state == IteratingStates.TASKS and state.get_current_block().rescue:
             return True
         if state.tasks_child_state is not None:
@@ -635,3 +659,19 @@ class PlayIterator:
 
     def clear_notification(self, hostname: str, notification: str) -> None:
         self._host_states[hostname].handler_notifications.remove(notification)
+
+    def end_host(self, hostname: str) -> None:
+        """Used by ``end_host``, ``end_batch`` and ``end_play`` meta tasks to end executing given host."""
+        state = self.get_active_state(self.get_state_for_host(hostname))
+        if state.run_state == IteratingStates.RESCUE:
+            # This is a special case for when ending a host occurs in rescue.
+            # By definition the meta task responsible for ending the host
+            # is the last task, so we need to clear the fail state to mark
+            # the host as rescued.
+            # The reason we need to do that is because this operation is
+            # normally done when PlayIterator transitions from rescue to
+            # always when only then we can say that rescue didn't fail
+            # but with ending a host via meta task, we don't get to that transition.
+            self.set_fail_state_for_host(hostname, FailedStates.NONE)
+        self.set_run_state_for_host(hostname, IteratingStates.COMPLETE)
+        self._play._removed_hosts.append(hostname)

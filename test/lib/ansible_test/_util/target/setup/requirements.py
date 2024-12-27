@@ -62,10 +62,14 @@ def main():  # type: () -> None
 
 
 # noinspection PyUnusedLocal
-def bootstrap(pip, options):  # type: (str, t.Dict[str, t.Any]) -> None
+def bootstrap(pip: str, options: dict[str, t.Any]) -> None:
     """Bootstrap pip and related packages in an empty virtual environment."""
     pip_version = options['pip_version']
     packages = options['packages']
+    setuptools = options['setuptools']
+    wheel = options['wheel']
+
+    del options
 
     url = 'https://ci-files.testing.ansible.com/ansible-test/get-pip-%s.py' % pip_version
     cache_path = os.path.expanduser('~/.ansible/test/cache/get_pip_%s.py' % pip_version.replace(".", "_"))
@@ -98,25 +102,33 @@ https://github.com/ansible/ansible/issues/77304
     env = common_pip_environment()
     env.update(GET_PIP=cache_path)
 
-    options = common_pip_options()
-    options.extend(packages)
+    pip_options = common_pip_options()
+    pip_options.extend(packages)
 
-    command = [sys.executable, pip] + options
+    if not setuptools:
+        pip_options.append('--no-setuptools')
+
+    if not wheel:
+        pip_options.append('--no-wheel')
+
+    command = [sys.executable, pip] + pip_options
 
     execute_command(command, env=env)
 
 
-def install(pip, options):  # type: (str, t.Dict[str, t.Any]) -> None
+def install(pip: str, options: dict[str, t.Any]) -> None:
     """Perform a pip install."""
     requirements = options['requirements']
     constraints = options['constraints']
     packages = options['packages']
 
+    del options
+
     tempdir = tempfile.mkdtemp(prefix='ansible-test-', suffix='-requirements')
 
     try:
-        options = common_pip_options()
-        options.extend(packages)
+        pip_options = common_pip_options()
+        pip_options.extend(packages)
 
         for path, content in requirements:
             if path.split(os.sep)[0] in ('test', 'requirements'):
@@ -128,13 +140,13 @@ def install(pip, options):  # type: (str, t.Dict[str, t.Any]) -> None
                     pre_build.execute(pip)
 
             write_text_file(os.path.join(tempdir, path), content, True)
-            options.extend(['-r', path])
+            pip_options.extend(['-r', path])
 
         for path, content in constraints:
             write_text_file(os.path.join(tempdir, path), content, True)
-            options.extend(['-c', path])
+            pip_options.extend(['-c', path])
 
-        command = [sys.executable, pip, 'install'] + options
+        command = [sys.executable, pip, 'install'] + pip_options
 
         env = common_pip_environment()
 
@@ -155,8 +167,8 @@ class PreBuild:
         tempdir = tempfile.mkdtemp(prefix='ansible-test-', suffix='-pre-build')
 
         try:
-            options = common_pip_options()
-            options.append(self.requirement)
+            pip_options = common_pip_options()
+            pip_options.append(self.requirement)
 
             constraints = '\n'.join(self.constraints) + '\n'
             constraints_path = os.path.join(tempdir, 'constraints.txt')
@@ -166,7 +178,7 @@ class PreBuild:
             env = common_pip_environment()
             env.update(PIP_CONSTRAINT=constraints_path)
 
-            command = [sys.executable, pip, 'wheel'] + options
+            command = [sys.executable, pip, 'wheel'] + pip_options
 
             execute_command(command, env=env, cwd=tempdir)
         finally:
@@ -198,15 +210,17 @@ def parse_pre_build_instructions(requirements):  # type: (str) -> list[PreBuild]
     return instructions
 
 
-def uninstall(pip, options):  # type: (str, t.Dict[str, t.Any]) -> None
+def uninstall(pip: str, options: dict[str, t.Any]) -> None:
     """Perform a pip uninstall."""
     packages = options['packages']
     ignore_errors = options['ignore_errors']
 
-    options = common_pip_options()
-    options.extend(packages)
+    del options
 
-    command = [sys.executable, pip, 'uninstall', '-y'] + options
+    pip_options = common_pip_options()
+    pip_options.extend(packages)
+
+    command = [sys.executable, pip, 'uninstall', '-y'] + pip_options
 
     env = common_pip_environment()
 
@@ -218,13 +232,13 @@ def uninstall(pip, options):  # type: (str, t.Dict[str, t.Any]) -> None
 
 
 # noinspection PyUnusedLocal
-def version(pip, options):  # type: (str, t.Dict[str, t.Any]) -> None
+def version(pip: str, options: dict[str, t.Any]) -> None:
     """Report the pip version."""
     del options
 
-    options = common_pip_options()
+    pip_options = common_pip_options()
 
-    command = [sys.executable, pip, '-V'] + options
+    command = [sys.executable, pip, '-V'] + pip_options
 
     env = common_pip_environment()
 
@@ -256,11 +270,11 @@ def common_pip_options():  # type: () -> t.List[str]
 def devnull():  # type: () -> t.IO[bytes]
     """Return a file object that references devnull."""
     try:
-        return devnull.file
+        return devnull.file  # type: ignore[attr-defined]
     except AttributeError:
-        devnull.file = open(os.devnull, 'w+b')  # pylint: disable=consider-using-with
+        devnull.file = open(os.devnull, 'w+b')  # type: ignore[attr-defined]  # pylint: disable=consider-using-with
 
-    return devnull.file
+    return devnull.file  # type: ignore[attr-defined]
 
 
 def download_file(url, path):  # type: (str, str) -> None
@@ -355,17 +369,17 @@ def open_binary_file(path, mode='rb'):  # type: (str, str) -> t.IO[bytes]
     return io.open(to_bytes(path), mode)  # pylint: disable=consider-using-with,unspecified-encoding
 
 
-def to_optional_bytes(value, errors='strict'):  # type: (t.Optional[t.AnyStr], str) -> t.Optional[bytes]
+def to_optional_bytes(value, errors='strict'):  # type: (t.Optional[str | bytes], str) -> t.Optional[bytes]
     """Return the given value as bytes encoded using UTF-8 if not already bytes, or None if the value is None."""
     return None if value is None else to_bytes(value, errors)
 
 
-def to_optional_text(value, errors='strict'):  # type: (t.Optional[t.AnyStr], str) -> t.Optional[t.Text]
+def to_optional_text(value, errors='strict'):  # type: (t.Optional[str | bytes], str) -> t.Optional[t.Text]
     """Return the given value as text decoded using UTF-8 if not already text, or None if the value is None."""
     return None if value is None else to_text(value, errors)
 
 
-def to_bytes(value, errors='strict'):  # type: (t.AnyStr, str) -> bytes
+def to_bytes(value, errors='strict'):  # type: (str | bytes, str) -> bytes
     """Return the given value as bytes encoded using UTF-8 if not already bytes."""
     if isinstance(value, bytes):
         return value
@@ -376,7 +390,7 @@ def to_bytes(value, errors='strict'):  # type: (t.AnyStr, str) -> bytes
     raise Exception('value is not bytes or text: %s' % type(value))
 
 
-def to_text(value, errors='strict'):  # type: (t.AnyStr, str) -> t.Text
+def to_text(value, errors='strict'):  # type: (str | bytes, str) -> t.Text
     """Return the given value as text decoded using UTF-8 if not already text."""
     if isinstance(value, bytes):
         return value.decode(ENCODING, errors)

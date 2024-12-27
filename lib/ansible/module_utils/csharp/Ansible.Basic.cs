@@ -73,7 +73,6 @@ namespace Ansible.Basic
             { "selinux_special_fs", null },
             { "shell_executable", null },
             { "socket", null },
-            { "string_conversion_action", null },
             { "syslog_facility", null },
             { "target_log_info", "TargetLogInfo"},
             { "tmpdir", "tmpdir" },
@@ -1025,7 +1024,16 @@ namespace Ansible.Basic
             foreach (DictionaryEntry entry in param)
             {
                 string paramKey = (string)entry.Key;
-                if (!legalInputs.Contains(paramKey, StringComparer.OrdinalIgnoreCase))
+                if (paramKey == "_ansible_exec_wrapper_warnings")
+                {
+                    // Special key used in module_powershell_wrapper to pass
+                    // along any warnings that should be returned back to
+                    // Ansible.
+                    removedParameters.Add(paramKey);
+                    foreach (string warning in (IList<string>)entry.Value)
+                        Warn(warning);
+                }
+                else if (!legalInputs.Contains(paramKey, StringComparer.OrdinalIgnoreCase))
                     unsupportedParameters.Add(paramKey);
                 else if (!legalInputs.Contains(paramKey))
                     // For backwards compatibility we do not care about the case but we need to warn the users as this will

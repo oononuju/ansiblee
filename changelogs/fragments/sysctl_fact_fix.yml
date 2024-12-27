@@ -1,2 +1,0 @@
-bugfixes:
-  - setup/gather_facts will now warn and skip missing ``sysctl`` instead of being a fatal error.

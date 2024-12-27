@@ -26,7 +26,7 @@ import tempfile
 import traceback
 
 from ansible import constants as C
-from ansible.errors import AnsibleError, AnsibleFileNotFound
+from ansible.errors import AnsibleError, AnsibleActionFail, AnsibleFileNotFound
 from ansible.module_utils.basic import FILE_COMMON_ARGUMENTS
 from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
 from ansible.module_utils.parsing.convert_bool import boolean
@@ -389,17 +389,15 @@ class ActionModule(ActionBase):
         return result
 
     def _create_content_tempfile(self, content):
-        ''' Create a tempfile containing defined content '''
+        """ Create a tempfile containing defined content """
         fd, content_tempfile = tempfile.mkstemp(dir=C.DEFAULT_LOCAL_TMP, prefix='.')
-        f = os.fdopen(fd, 'wb')
         content = to_bytes(content)
         try:
-            f.write(content)
+            with os.fdopen(fd, 'wb') as f:
+                f.write(content)
         except Exception as err:
             os.remove(content_tempfile)
             raise Exception(err)
-        finally:
-            f.close()
         return content_tempfile
 
     def _remove_tempfile_if_content_defined(self, content, content_tempfile):
@@ -407,12 +405,17 @@ class ActionModule(ActionBase):
             os.remove(content_tempfile)
 
     def run(self, tmp=None, task_vars=None):
-        ''' handler for file transfer operations '''
+        """ handler for file transfer operations """
         if task_vars is None:
             task_vars = dict()
 
         result = super(ActionModule, self).run(tmp, task_vars)
         del tmp  # tmp no longer has any effect
+
+        # ensure user is not setting internal parameters
+        for internal in ('_original_basename', '_diff_peek'):
+            if self._task.args.get(internal, None) is not None:
+                raise AnsibleActionFail(f'Invalid parameter specified: "{internal}"')
 
         source = self._task.args.get('src', None)
         content = self._task.args.get('content', None)

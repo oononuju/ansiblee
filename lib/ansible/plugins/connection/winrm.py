@@ -208,6 +208,14 @@ except ImportError as e:
     WINRM_IMPORT_ERR = e
 
 try:
+    from winrm.exceptions import WSManFaultError
+except ImportError:
+    # This was added in pywinrm 0.5.0, we just use our no-op exception for
+    # older versions which won't be able to handle this scenario.
+    class WSManFaultError(Exception):  # type: ignore[no-redef]
+        pass
+
+try:
     import xmltodict
     HAS_XMLTODICT = True
     XMLTODICT_IMPORT_ERR = None
@@ -239,7 +247,7 @@ display = Display()
 
 
 class Connection(ConnectionBase):
-    '''WinRM connections over HTTP/HTTPS.'''
+    """WinRM connections over HTTP/HTTPS."""
 
     transport = 'winrm'
     module_implementation_preferences = ('.ps1', '.exe', '')
@@ -436,9 +444,9 @@ class Connection(ConnectionBase):
         display.vvvvv("kinit succeeded for principal %s" % principal)
 
     def _winrm_connect(self) -> winrm.Protocol:
-        '''
+        """
         Establish a WinRM connection over HTTP/HTTPS.
-        '''
+        """
         display.vvv("ESTABLISH WINRM CONNECTION FOR USER: %s on PORT %s TO %s" %
                     (self._winrm_user, self._winrm_port, self._winrm_host), host=self._winrm_host)
 
@@ -633,7 +641,11 @@ class Connection(ConnectionBase):
         command_id = None
         try:
             stdin_push_failed = False
-            command_id = self.protocol.run_command(self.shell_id, to_bytes(command), map(to_bytes, args), console_mode_stdin=(stdin_iterator is None))
+            command_id = self._winrm_run_command(
+                to_bytes(command),
+                tuple(map(to_bytes, args)),
+                console_mode_stdin=(stdin_iterator is None),
+            )
 
             try:
                 if stdin_iterator:
@@ -696,6 +708,39 @@ class Connection(ConnectionBase):
                         raise
 
                     display.warning("Failed to cleanup running WinRM command, resources might still be in use on the target server")
+
+    def _winrm_run_command(
+        self,
+        command: bytes,
+        args: tuple[bytes, ...],
+        console_mode_stdin: bool = False,
+    ) -> str:
+        """Starts a command with handling when the WSMan quota is exceeded."""
+        try:
+            return self.protocol.run_command(
+                self.shell_id,
+                command,
+                args,
+                console_mode_stdin=console_mode_stdin,
+            )
+        except WSManFaultError as fault_error:
+            if fault_error.wmierror_code != 0x803381A6:
+                raise
+
+            # 0x803381A6 == ERROR_WSMAN_QUOTA_MAX_OPERATIONS
+            # WinRS does not decrement the operation count for commands,
+            # only way to avoid this is to re-create the shell. This is
+            # important for action plugins that might be running multiple
+            # processes in the same connection.
+            display.vvvvv("Shell operation quota exceeded, re-creating shell", host=self._winrm_host)
+            self.close()
+            self._connect()
+            return self.protocol.run_command(
+                self.shell_id,
+                command,
+                args,
+                console_mode_stdin=console_mode_stdin,
+            )
 
     def _connect(self) -> Connection:
 
@@ -761,7 +806,7 @@ class Connection(ConnectionBase):
         if not os.path.exists(to_bytes(in_path, errors='surrogate_or_strict')):
             raise AnsibleFileNotFound('file or module does not exist: "%s"' % to_native(in_path))
 
-        script_template = u'''
+        script_template = u"""
             begin {{
                 $path = '{0}'
 
@@ -789,7 +834,7 @@ class Connection(ConnectionBase):
 
                 Write-Output "{{""sha1"":""$hash""}}"
             }}
-        '''
+        """
 
         script = script_template.format(self._shell._escape(out_path))
         cmd_parts = self._shell._encode_script(script, as_list=True, strict_mode=False, preserve_rc=False)
@@ -828,7 +873,7 @@ class Connection(ConnectionBase):
             offset = 0
             while True:
                 try:
-                    script = '''
+                    script = """
                         $path = '%(path)s'
                         If (Test-Path -LiteralPath $path -PathType Leaf)
                         {
@@ -854,7 +899,7 @@ class Connection(ConnectionBase):
                             Write-Error "$path does not exist";
                             Exit 1;
                         }
-                    ''' % dict(buffer_size=buffer_size, path=self._shell._escape(in_path), offset=offset)
+                    """ % dict(buffer_size=buffer_size, path=self._shell._escape(in_path), offset=offset)
                     display.vvvvv('WINRM FETCH "%s" to "%s" (offset=%d)' % (in_path, out_path, offset), host=self._winrm_host)
                     cmd_parts = self._shell._encode_script(script, as_list=True, preserve_rc=False)
                     status_code, b_stdout, b_stderr = self._winrm_exec(cmd_parts[0], cmd_parts[1:])

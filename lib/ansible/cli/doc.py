@@ -50,7 +50,7 @@ PB_OBJECTS = ['Play', 'Role', 'Block', 'Task', 'Handler']
 PB_LOADED = {}
 SNIPPETS = ['inventory', 'lookup', 'module']
 
-# harcoded from ascii values
+# hardcoded from ascii values
 STYLE = {
     'BLINK': '\033[5m',
     'BOLD': '\033[1m',
@@ -71,8 +71,14 @@ NOCOLOR = {
     'PLUGIN': r'[%s]',
 }
 
-# TODO: make configurable
-ref_style = {'MODULE': 'yellow', 'REF': 'magenta', 'LINK': 'cyan', 'DEP': 'magenta', 'CONSTANT': 'dark gray', 'PLUGIN': 'yellow'}
+ref_style = {
+    'MODULE': C.COLOR_DOC_MODULE,
+    'REF': C.COLOR_DOC_REFERENCE,
+    'LINK': C.COLOR_DOC_LINK,
+    'DEP': C.COLOR_DOC_DEPRECATED,
+    'CONSTANT': C.COLOR_DOC_CONSTANT,
+    'PLUGIN': C.COLOR_DOC_PLUGIN,
+}
 
 
 def jdump(text):
@@ -381,6 +387,12 @@ class RoleMixin(object):
 
         for role, collection, role_path in (roles | collroles):
             argspec = self._load_argspec(role, role_path, collection)
+            if 'error' in argspec:
+                if fail_on_errors:
+                    raise argspec['exception']
+                else:
+                    display.warning('Skipping role (%s) due to: %s' % (role, argspec['error']), True)
+                    continue
             fqcn, doc = self._build_doc(role, role_path, collection, argspec, entry_point)
             if doc:
                 result[fqcn] = doc
@@ -397,7 +409,7 @@ def _doclink(url):
 
 def _format(string, *args):
 
-    ''' add ascii formatting or delimiters '''
+    """ add ascii formatting or delimiters """
 
     for style in args:
 
@@ -421,10 +433,10 @@ def _format(string, *args):
 
 
 class DocCLI(CLI, RoleMixin):
-    ''' displays information on modules installed in Ansible libraries.
+    """ displays information on modules installed in Ansible libraries.
         It displays a terse listing of plugins and their short descriptions,
         provides a printout of their DOCUMENTATION strings,
-        and it can create a short "snippet" which can be pasted into a playbook.  '''
+        and it can create a short "snippet" which can be pasted into a playbook.  """
 
     name = 'ansible-doc'
 
@@ -838,14 +850,14 @@ class DocCLI(CLI, RoleMixin):
         return plugin_docs
 
     def _get_roles_path(self):
-        '''
+        """
          Add any 'roles' subdir in playbook dir to the roles search path.
          And as a last resort, add the playbook dir itself. Order being:
            - 'roles' subdir of playbook dir
            - DEFAULT_ROLES_PATH (default in cliargs)
            - playbook dir (basedir)
          NOTE: This matches logic in RoleDefinition._load_role_path() method.
-        '''
+        """
         roles_path = context.CLIARGS['roles_path']
         if context.CLIARGS['basedir'] is not None:
             subdir = os.path.join(context.CLIARGS['basedir'], "roles")
@@ -856,7 +868,7 @@ class DocCLI(CLI, RoleMixin):
 
     @staticmethod
     def _prep_loader(plugin_type):
-        ''' return a plugint type specific loader '''
+        """ return a plugint type specific loader """
         loader = getattr(plugin_loader, '%s_loader' % plugin_type)
 
         # add to plugin paths from command line
@@ -881,6 +893,7 @@ class DocCLI(CLI, RoleMixin):
         plugin_type = context.CLIARGS['type'].lower()
         do_json = context.CLIARGS['json_format'] or context.CLIARGS['dump']
         listing = context.CLIARGS['list_files'] or context.CLIARGS['list_dir']
+        no_fail = bool(not context.CLIARGS['no_fail_on_errors'])
 
         if context.CLIARGS['list_files']:
             content = 'files'
@@ -903,7 +916,6 @@ class DocCLI(CLI, RoleMixin):
             docs['all'] = {}
             for ptype in ptypes:
 
-                no_fail = bool(not context.CLIARGS['no_fail_on_errors'])
                 if ptype == 'role':
                     roles = self._create_role_list(fail_on_errors=no_fail)
                     docs['all'][ptype] = self._create_role_doc(roles.keys(), context.CLIARGS['entry_point'], fail_on_errors=no_fail)
@@ -929,7 +941,7 @@ class DocCLI(CLI, RoleMixin):
             if plugin_type == 'keyword':
                 docs = DocCLI._get_keywords_docs(context.CLIARGS['args'])
             elif plugin_type == 'role':
-                docs = self._create_role_doc(context.CLIARGS['args'], context.CLIARGS['entry_point'])
+                docs = self._create_role_doc(context.CLIARGS['args'], context.CLIARGS['entry_point'], fail_on_errors=no_fail)
             else:
                 # display specific plugin docs
                 docs = self._get_plugins_docs(plugin_type, context.CLIARGS['args'])
@@ -1046,7 +1058,7 @@ class DocCLI(CLI, RoleMixin):
 
     @staticmethod
     def format_snippet(plugin, plugin_type, doc):
-        ''' return heavily commented plugin use to insert into play '''
+        """ return heavily commented plugin use to insert into play """
         if plugin_type == 'inventory' and doc.get('options', {}).get('plugin'):
             # these do not take a yaml config that we can write a snippet for
             raise ValueError('The {0} inventory plugin does not take YAML type config source'
@@ -1083,7 +1095,7 @@ class DocCLI(CLI, RoleMixin):
             text = DocCLI.get_man_text(doc, collection_name, plugin_type)
         except Exception as e:
             display.vvv(traceback.format_exc())
-            raise AnsibleError("Unable to retrieve documentation from '%s' due to: %s" % (plugin, to_native(e)), orig_exc=e)
+            raise AnsibleError("Unable to retrieve documentation from '%s'" % (plugin), orig_exc=e)
 
         return text
 
@@ -1128,7 +1140,7 @@ class DocCLI(CLI, RoleMixin):
 
     @staticmethod
     def print_paths(finder):
-        ''' Returns a string suitable for printing of the search path '''
+        """ Returns a string suitable for printing of the search path """
 
         # Uses a list to get the order right
         ret = []
@@ -1189,7 +1201,7 @@ class DocCLI(CLI, RoleMixin):
                     opt_leadin = "-"
                 key = "%s%s %s" % (base_indent, opt_leadin, _format(o, 'yellow'))
 
-            # description is specifically formated and can either be string or list of strings
+            # description is specifically formatted and can either be string or list of strings
             if 'description' not in opt:
                 raise AnsibleError("All (sub-)options and return values must have a 'description' field")
             text.append('')
@@ -1268,7 +1280,7 @@ class DocCLI(CLI, RoleMixin):
                 DocCLI.add_fields(text, subdata, limit, opt_indent + '  ', return_values, opt_indent)
 
     def get_role_man_text(self, role, role_json):
-        '''Generate text for the supplied role suitable for display.
+        """Generate text for the supplied role suitable for display.
 
         This is similar to get_man_text(), but roles are different enough that we have
         a separate method for formatting their display.
@@ -1277,7 +1289,7 @@ class DocCLI(CLI, RoleMixin):
         :param role_json: The JSON for the given role as returned from _create_role_doc().
 
         :returns: A array of text suitable for displaying to screen.
-        '''
+        """
         text = []
         opt_indent = "          "
         pad = display.columns * 0.20
@@ -1381,16 +1393,15 @@ class DocCLI(CLI, RoleMixin):
         if doc.get('deprecated', False):
             text.append(_format("DEPRECATED: ", 'bold', 'DEP'))
             if isinstance(doc['deprecated'], dict):
-                if 'removed_at_date' in doc['deprecated']:
-                    text.append(
-                        "\tReason: %(why)s\n\tWill be removed in a release after %(removed_at_date)s\n\tAlternatives: %(alternative)s" % doc.pop('deprecated')
-                    )
-                else:
-                    if 'version' in doc['deprecated'] and 'removed_in' not in doc['deprecated']:
-                        doc['deprecated']['removed_in'] = doc['deprecated']['version']
-                    text.append("\tReason: %(why)s\n\tWill be removed in: Ansible %(removed_in)s\n\tAlternatives: %(alternative)s" % doc.pop('deprecated'))
+                if 'removed_at_date' not in doc['deprecated'] and 'version' in doc['deprecated'] and 'removed_in' not in doc['deprecated']:
+                    doc['deprecated']['removed_in'] = doc['deprecated']['version']
+                try:
+                    text.append('\t' + C.config.get_deprecated_msg_from_config(doc['deprecated'], True, collection_name=collection_name))
+                except KeyError as e:
+                    raise AnsibleError("Invalid deprecation documentation structure", orig_exc=e)
             else:
-                text.append("%s" % doc.pop('deprecated'))
+                text.append("%s" % doc['deprecated'])
+            del doc['deprecated']
 
         if doc.pop('has_action', False):
             text.append("")

@@ -51,5 +51,5 @@ class SystemdFactCollector(BaseFactCollector):
             except ValueError:
                 systemd_facts["systemd"]["version"] = str(systemd_version)
 
-            return systemd_facts
+        return systemd_facts
 
